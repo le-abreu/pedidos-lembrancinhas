@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { createRequestUrl } from "@/lib/request-url";
+
 const PUBLIC_PATHS = ["/login", "/api/auth/login"];
 
 export function middleware(request: NextRequest) {
@@ -17,7 +19,7 @@ export function middleware(request: NextRequest) {
   const userId = request.cookies.get("pedido-poc-user")?.value;
 
   if (!userId) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(createRequestUrl(request, "/login"));
   }
 
   return NextResponse.next();
@@ -26,4 +28,3 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
-

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { setSessionCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createRequestUrl } from "@/lib/request-url";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
@@ -17,11 +18,10 @@ export async function POST(request: Request) {
   });
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login?error=1", request.url));
+    return NextResponse.redirect(createRequestUrl(request, "/login?error=1"));
   }
 
   setSessionCookie(user.id);
 
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(createRequestUrl(request, "/"));
 }
-
