@@ -1,0 +1,39 @@
+{
+  "name": "pedido-lembrancinha-poc",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "docker:up": "docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.override.yml up -d --build",
+    "docker:down": "docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.override.yml down",
+    "docker:logs": "docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.override.yml logs -f",
+    "docker:ps": "docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml -f docker/compose/docker-compose.override.yml ps"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "aws-sdk": "2.1692.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^1.8.0",
+    "next": "14.2.33",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.2.66",
+    "@types/react-dom": "18.2.22",
+    "prisma": "5.22.0",
+    "typescript": "5.4.5"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}

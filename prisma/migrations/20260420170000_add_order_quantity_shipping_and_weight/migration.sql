@@ -1,0 +1,18 @@
+CREATE TYPE "ShippingType" AS ENUM (
+  'RETIRADA',
+  'ENTREGA_PROPRIA',
+  'MOTOBOY',
+  'CORREIOS',
+  'TRANSPORTADORA'
+);
+
+ALTER TABLE "OrderTypeProduct"
+ADD COLUMN "defaultUnitWeight" DECIMAL(10, 3);
+
+ALTER TABLE "Order"
+ADD COLUMN "requestedQuantity" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN "shippingType" "ShippingType" NOT NULL DEFAULT 'RETIRADA',
+ADD COLUMN "deliveryAddress" TEXT;
+
+ALTER TABLE "OrderItem"
+ADD COLUMN "unitWeight" DECIMAL(10, 3);
