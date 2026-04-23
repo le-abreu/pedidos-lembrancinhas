@@ -1,6 +1,7 @@
 import { PhaseExecutionStatus, UserProfileType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { getDashboardFinancialSnapshot } from "@/server/services/financial-service";
 
 type DashboardUser = {
   id: string;
@@ -42,7 +43,16 @@ export async function getDashboardSnapshot(user: DashboardUser) {
   const orderScope = getOrderScope(user);
   const isAdmin = user.profiles.some((item) => item.profile === UserProfileType.ADMIN);
 
-  const [companies, customers, suppliers, orders, activeOrders, completedPhases, pendingPhases, recentOrders] =
+  const [
+    companies,
+    customers,
+    suppliers,
+    orders,
+    activeOrders,
+    completedPhases,
+    pendingPhases,
+    dashboardFinancial,
+  ] =
     await Promise.all([
       isAdmin ? prisma.company.count() : Promise.resolve(user.companyId ? 1 : 0),
       isAdmin
@@ -74,16 +84,7 @@ export async function getDashboardSnapshot(user: DashboardUser) {
           order: orderScope,
         },
       }),
-      prisma.order.findMany({
-        where: orderScope,
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        include: {
-          company: true,
-          customer: true,
-          currentStatus: true,
-        },
-      }),
+      getDashboardFinancialSnapshot(user as any),
     ]);
 
   return {
@@ -95,7 +96,14 @@ export async function getDashboardSnapshot(user: DashboardUser) {
       activeOrders,
       completedPhases,
       pendingPhases,
+      financialPlanned: dashboardFinancial.financialSummary.planned,
+      financialReceived: dashboardFinancial.financialSummary.received,
+      financialOpen: dashboardFinancial.financialSummary.open,
+      financialOverdueInstallments: dashboardFinancial.financialSummary.overdueInstallments,
+      openInstallments: dashboardFinancial.financialSummary.openInstallments,
+      ordersWithoutPayment: dashboardFinancial.financialSummary.ordersWithoutPayment,
+      overduePaymentItems: dashboardFinancial.financialSummary.overdueItems,
     },
-    recentOrders,
+    orderStatusBreakdown: dashboardFinancial.orderStatusBreakdown,
   };
 }

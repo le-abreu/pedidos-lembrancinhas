@@ -32,6 +32,23 @@ enum PhaseExecutionStatus {
   COMPLETED
 }
 
+enum PaymentMethod {
+  PIX
+  TRANSFER
+  CREDIT_CARD
+  BOLETO
+}
+
+enum PaymentInstallmentMode {
+  SINGLE
+  INSTALLMENT
+}
+
+enum OrderPaymentInstallmentStatus {
+  OPEN
+  PAID
+}
+
 enum AttachmentEntityType {
   ORDER
   ORDER_PHASE_EXECUTION
@@ -102,6 +119,7 @@ model User {
   active           Boolean               @default(true)
   profiles         UserProfile[]
   createdOrders    Order[]               @relation("OrderCreatedBy")
+  createdPaymentPlans OrderPaymentPlan[] @relation("OrderPaymentPlanCreatedBy")
   phaseExecutions  OrderPhaseExecution[] @relation("PhaseExecutedBy")
   storedFiles      StoredFile[]
   createdAt        DateTime              @default(now())
@@ -142,9 +160,11 @@ model ShippingMethod {
 
 model OrderType {
   id          String             @id @default(cuid())
+  fileStoredFileId String?
   name        String             @unique
   description String?
   active      Boolean            @default(true)
+  fileStoredFile StoredFile?     @relation("OrderTypeFile", fields: [fileStoredFileId], references: [id], onDelete: SetNull)
   products    OrderTypeProduct[]
   workflow    Workflow?
   orders      Order[]
@@ -155,7 +175,9 @@ model OrderType {
 model OrderTypeProduct {
   id                  String      @id @default(cuid())
   orderTypeId         String
+  fileStoredFileId    String?
   orderType           OrderType   @relation(fields: [orderTypeId], references: [id], onDelete: Cascade)
+  fileStoredFile      StoredFile? @relation("OrderTypeProductFile", fields: [fileStoredFileId], references: [id], onDelete: SetNull)
   name                String
   description         String?
   defaultQuantity     Int?
@@ -236,6 +258,7 @@ model Order {
   phaseExecutions   OrderPhaseExecution[]
   suppliers         OrderSupplier[]
   invoices          Invoice[]
+  paymentPlans      OrderPaymentPlan[]
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 }
@@ -300,6 +323,41 @@ model Invoice {
   updatedAt    DateTime  @updatedAt
 }
 
+model OrderPaymentPlan {
+  id                String                   @id @default(cuid())
+  orderId           String
+  createdById       String
+  method            PaymentMethod
+  installmentMode   PaymentInstallmentMode   @default(SINGLE)
+  installmentsCount Int                      @default(1)
+  totalAmount       Decimal                  @db.Decimal(10, 2)
+  notes             String?
+  order             Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy         User                     @relation("OrderPaymentPlanCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  installments      OrderPaymentInstallment[]
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([orderId])
+}
+
+model OrderPaymentInstallment {
+  id          String                        @id @default(cuid())
+  planId      String
+  number      Int
+  dueAt       DateTime
+  amount      Decimal                       @db.Decimal(10, 2)
+  paidAt      DateTime?
+  notes       String?
+  status      OrderPaymentInstallmentStatus @default(OPEN)
+  plan        OrderPaymentPlan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+
+  @@unique([planId, number])
+  @@index([dueAt])
+}
+
 model StoredFile {
   id            String           @id @default(cuid())
   bucket        String
@@ -311,6 +369,8 @@ model StoredFile {
   uploadedById  String?
   uploadedBy    User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   avatarUsers   User[]           @relation("UserAvatar")
+  orderTypes    OrderType[]      @relation("OrderTypeFile")
+  orderTypeProducts OrderTypeProduct[] @relation("OrderTypeProductFile")
   attachments   FileAttachment[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt

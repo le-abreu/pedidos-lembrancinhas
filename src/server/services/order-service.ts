@@ -137,6 +137,11 @@ export async function getOrderIndexData(filters: OrderFilters, user: ScopedUser)
       currentStatus: true,
       createdBy: true,
       suppliers: { include: { supplier: true } },
+      _count: {
+        select: {
+          paymentPlans: true,
+        },
+      },
     },
   });
 
@@ -164,10 +169,18 @@ export async function getOrderFormData(id?: string, user?: OrderFormScope) {
     await prisma.$transaction([
       prisma.company.findMany({ where: companyWhere, orderBy: { tradeName: "asc" } }),
       prisma.customer.findMany({ where: customerWhere, orderBy: { name: "asc" } }),
-      prisma.orderType.findMany({
+      (prisma.orderType as any).findMany({
         where: { active: true },
         orderBy: { name: "asc" },
-        include: { workflow: true, products: { where: { active: true }, orderBy: { name: "asc" } } },
+        include: {
+          workflow: true,
+          fileStoredFile: true,
+          products: {
+            where: { active: true },
+            orderBy: { name: "asc" },
+            include: { fileStoredFile: true },
+          },
+        },
       }),
       prisma.orderStatus.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
       (prisma as any).shippingMethod.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
@@ -210,7 +223,7 @@ export async function getOrderById(id: string, user: ScopedUser) {
       company: true,
       customer: true,
       orderType: {
-        include: { products: true },
+        include: { fileStoredFile: true, products: { include: { fileStoredFile: true } } },
       },
       workflow: {
         include: {
@@ -224,7 +237,7 @@ export async function getOrderById(id: string, user: ScopedUser) {
       shippingMethod: true,
       createdBy: true,
       items: {
-        include: { product: true },
+        include: { product: { include: { fileStoredFile: true } } },
       },
       suppliers: {
         include: { supplier: true },
@@ -241,6 +254,17 @@ export async function getOrderById(id: string, user: ScopedUser) {
       },
       invoices: {
         orderBy: { issuedAt: "desc" },
+      },
+      paymentPlans: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          createdBy: {
+            select: { id: true, name: true },
+          },
+          installments: {
+            orderBy: { number: "asc" },
+          },
+        },
       },
     },
   });

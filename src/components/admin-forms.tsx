@@ -348,13 +348,17 @@ export function OrderTypeForm({
     id: string;
     name: string;
     description: string | null;
+    fileStoredFile?: {
+      id: string;
+      originalName: string;
+    } | null;
   } | null;
 }) {
   const formId = item ? `order-type-form-${item.id}` : "order-type-form-new";
 
   return (
     <>
-      <form id={formId} action={action} className="form-grid order-type-form">
+      <form id={formId} action={action} className="form-grid order-type-form" encType="multipart/form-data">
         <input type="hidden" name="redirectPath" value={redirectPath} />
         {item ? <input type="hidden" name="id" value={item.id} /> : null}
         <label className="field">
@@ -364,6 +368,15 @@ export function OrderTypeForm({
         <label className="field order-type-description-field">
           <span>Descrição</span>
           <textarea name="description" rows={4} defaultValue={item?.description ?? ""} />
+        </label>
+        <label className="field">
+          <span>Arquivo do tipo</span>
+          <input name="file" type="file" />
+          {item?.fileStoredFile ? (
+            <a className="inline-file-link" href={`/api/files/${item.fileStoredFile.id}`} target="_blank">
+              Atual: {item.fileStoredFile.originalName}
+            </a>
+          ) : null}
         </label>
       </form>
       <div className="action-toolbar">
@@ -393,10 +406,14 @@ export function OrderTypeProductForm({
     defaultUnitPrice: { toString(): string } | null;
     defaultUnitWeight: { toString(): string } | null;
     required: boolean;
+    fileStoredFile?: {
+      id: string;
+      originalName: string;
+    } | null;
   } | null;
 }) {
   return (
-    <form action={action} className="form-grid">
+    <form action={action} className="form-grid" encType="multipart/form-data">
       <input type="hidden" name="redirectPath" value={redirectPath} />
       <input type="hidden" name="orderTypeId" value={orderTypeId} />
       {item ? <input type="hidden" name="id" value={item.id} /> : null}
@@ -431,6 +448,15 @@ export function OrderTypeProductForm({
           step="0.001"
           defaultValue={item?.defaultUnitWeight?.toString() ?? ""}
         />
+      </label>
+      <label className="field">
+        <span>Arquivo do produto</span>
+        <input name="file" type="file" accept="image/*" />
+        {item?.fileStoredFile ? (
+          <a className="inline-file-link" href={`/api/files/${item.fileStoredFile.id}`} target="_blank">
+            Atual: {item.fileStoredFile.originalName}
+          </a>
+        ) : null}
       </label>
       <label className="field-checkbox">
         <input type="checkbox" name="required" defaultChecked={item?.required ?? false} />

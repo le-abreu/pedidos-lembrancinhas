@@ -171,7 +171,12 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             header: "Pedido",
             render: (item) => (
               <Link href={`/orders/${item.id}`}>
-                <strong>{item.title}</strong>
+                <div className="compact-stack">
+                  <strong>{item.title}</strong>
+                  {item._count.paymentPlans === 0 ? (
+                    <span className="badge warning-badge">Sem financeiro</span>
+                  ) : null}
+                </div>
               </Link>
             ),
           },

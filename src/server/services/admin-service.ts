@@ -350,10 +350,11 @@ export async function getStatusFormData(id?: string) {
 
 export async function getOrderTypeFormData(id?: string) {
   const item = id
-    ? await prisma.orderType.findUnique({
+    ? await (prisma.orderType as any).findUnique({
         where: { id },
         include: {
-          products: { orderBy: { name: "asc" } },
+          fileStoredFile: true,
+          products: { orderBy: { name: "asc" }, include: { fileStoredFile: true } },
           workflow: true,
         },
       })

@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { UserProfileType } from "@prisma/client";
 
-import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { requireAnyProfile } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
 import { getDashboardSnapshot } from "@/server/services/dashboard-service";
 
 export default async function DashboardPage() {
@@ -14,7 +12,7 @@ export default async function DashboardPage() {
     UserProfileType.CLIENT,
     UserProfileType.EXECUTOR,
   ]);
-  const { metrics, recentOrders } = await getDashboardSnapshot(user);
+  const { metrics, orderStatusBreakdown } = await getDashboardSnapshot(user);
 
   return (
     <div className="page-stack">
@@ -22,9 +20,14 @@ export default async function DashboardPage() {
         title="Dashboard inicial"
         description="Visão rápida da operação multiempresa, dos pedidos em andamento e do workflow."
         action={
-          <Link className="primary-button" href="/orders">
-            Ver pedidos
-          </Link>
+          <div className="table-actions">
+            <Link className="ghost-button" href="/financial">
+              Ver financeiro
+            </Link>
+            <Link className="primary-button" href="/orders">
+              Ver pedidos
+            </Link>
+          </div>
         }
       />
 
@@ -43,25 +46,29 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <DataTable
-        columns={[
-          { key: "titulo", header: "Pedido", render: (item) => item.title },
-          { key: "empresa", header: "Empresa", render: (item) => item.company.tradeName },
-          { key: "cliente", header: "Cliente", render: (item) => item.customer.name },
-          {
-            key: "status",
-            header: "Status",
-            render: (item) => (
-              <span className="badge" style={{ borderColor: item.currentStatus.color }}>
-                {item.currentStatus.name}
-              </span>
-            ),
-          },
-          { key: "data", header: "Solicitação", render: (item) => formatDate(item.requestedAt) },
-        ]}
-        data={recentOrders}
-        emptyMessage="Nenhum pedido encontrado."
-      />
+      <section className="card page-stack">
+        <div className="section-heading">
+          <h3>Pedidos por status</h3>
+          <span className="badge">{orderStatusBreakdown.length}</span>
+        </div>
+        <div className="status-overview-list">
+          {orderStatusBreakdown.length ? (
+            orderStatusBreakdown.map((item) => (
+              <div key={item.id} className="status-overview-item">
+                <div>
+                  <strong>{item.name}</strong>
+                  <p className="muted">{item.count} pedido(s)</p>
+                </div>
+                <span className="badge" style={{ borderColor: item.color }}>
+                  {item.count}
+                </span>
+              </div>
+            ))
+          ) : (
+            <span>Sem pedidos no escopo atual.</span>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

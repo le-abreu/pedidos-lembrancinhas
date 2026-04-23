@@ -2,17 +2,26 @@
 
 import {
   ExpectedFileType,
+  PaymentInstallmentMode,
+  PaymentMethod,
   PhaseExecutionStatus,
+  OrderPaymentInstallmentStatus,
   SupplierType,
   UserProfileType,
 } from "@prisma/client";
+import { addMonths } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildOrderScope } from "@/server/services/order-service";
-import { isUploadFile, uploadAndAttachFile, uploadUserAvatar } from "@/server/services/file-storage-service";
+import {
+  isUploadFile,
+  uploadAndAttachFile,
+  uploadStoredFile,
+  uploadUserAvatar,
+} from "@/server/services/file-storage-service";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value : "";
@@ -64,12 +73,55 @@ function getProfileValues(formData: FormData) {
   return formData.getAll("profiles").map((value) => value.toString() as UserProfileType);
 }
 
+function getFileExtension(fileName: string) {
+  const parts = fileName.toLowerCase().split(".");
+  return parts.length > 1 ? parts.pop() ?? "" : "";
+}
+
+function isImageUpload(file: File) {
+  return file.type.startsWith("image/");
+}
+
+function isDocumentUpload(file: File) {
+  const allowedExtensions = new Set(["pdf", "doc", "docx", "xml"]);
+  return (
+    file.type === "application/pdf" ||
+    file.type === "application/msword" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.type === "application/xml" ||
+    file.type === "text/xml" ||
+    allowedExtensions.has(getFileExtension(file.name))
+  );
+}
+
+function ensureImageUpload(file: FormDataEntryValue | null, message: string) {
+  if (!isUploadFile(file) || !isImageUpload(file)) {
+    throw new Error(message);
+  }
+
+  return file;
+}
+
+function ensureDocumentUpload(file: FormDataEntryValue | null, message: string) {
+  if (!isUploadFile(file) || !isDocumentUpload(file)) {
+    throw new Error(message);
+  }
+
+  return file;
+}
+
 function isAdminUser(user: { profiles: Array<{ profile: UserProfileType }> }) {
   return user.profiles.some((item) => item.profile === UserProfileType.ADMIN);
 }
 
 function isExecutorUser(user: { profiles: Array<{ profile: UserProfileType }> }) {
   return user.profiles.some((item) => item.profile === UserProfileType.EXECUTOR);
+}
+
+function requireAdminUser(user: { profiles: Array<{ profile: UserProfileType }> }) {
+  if (!isAdminUser(user)) {
+    throw new Error("Apenas administradores podem gerenciar o financeiro do pedido.");
+  }
 }
 
 function canInteractWithExecution(
@@ -131,11 +183,7 @@ function revalidateCrudPaths(basePath: string, redirectPath?: string) {
 
 export async function updateCurrentUserAvatar(formData: FormData) {
   const user = await requireCurrentUser();
-  const file = formData.get("avatar");
-
-  if (!isUploadFile(file)) {
-    throw new Error("Selecione uma foto para o usuário.");
-  }
+  const file = ensureImageUpload(formData.get("avatar"), "Selecione uma imagem para a foto do usuário.");
 
   const storedFile = await uploadUserAvatar({
     file,
@@ -573,10 +621,21 @@ export async function toggleStatusActive(formData: FormData) {
 }
 
 export async function createOrderType(formData: FormData) {
-  await prisma.orderType.create({
+  const user = await requireCurrentUser();
+  const file = formData.get("file");
+  const storedFile = isUploadFile(file)
+    ? await uploadStoredFile({
+        file,
+        objectPrefix: "order-types/catalog",
+        uploadedById: user.id,
+      })
+    : null;
+
+  await (prisma.orderType as any).create({
     data: {
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
+      fileStoredFileId: storedFile?.id ?? null,
       active: true,
     },
   });
@@ -588,13 +647,23 @@ export async function createOrderType(formData: FormData) {
 }
 
 export async function updateOrderType(formData: FormData) {
+  const user = await requireCurrentUser();
   const id = asString(formData.get("id"));
+  const file = formData.get("file");
+  const storedFile = isUploadFile(file)
+    ? await uploadStoredFile({
+        file,
+        objectPrefix: `order-types/${id}`,
+        uploadedById: user.id,
+      })
+    : null;
 
-  await prisma.orderType.update({
+  await (prisma.orderType as any).update({
     where: { id },
     data: {
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
+      ...(storedFile ? { fileStoredFileId: storedFile.id } : {}),
     },
   });
 
@@ -626,11 +695,25 @@ export async function toggleOrderTypeActive(formData: FormData) {
 }
 
 export async function createOrderTypeProduct(formData: FormData) {
+  const user = await requireCurrentUser();
+  const fileInput = formData.get("file");
+  const file = isUploadFile(fileInput)
+    ? ensureImageUpload(fileInput, "O arquivo do produto precisa ser uma imagem.")
+    : null;
+  const storedFile = isUploadFile(file)
+    ? await uploadStoredFile({
+        file,
+        objectPrefix: `order-types/${asString(formData.get("orderTypeId"))}/products`,
+        uploadedById: user.id,
+      })
+    : null;
+
   await (prisma.orderTypeProduct as any).create({
     data: {
       orderTypeId: asString(formData.get("orderTypeId")),
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
+      fileStoredFileId: storedFile?.id ?? null,
       defaultQuantity: asOptionalString(formData.get("defaultQuantity"))
         ? asInt(formData.get("defaultQuantity"))
         : null,
@@ -648,14 +731,27 @@ export async function createOrderTypeProduct(formData: FormData) {
 }
 
 export async function updateOrderTypeProduct(formData: FormData) {
+  const user = await requireCurrentUser();
   const id = asString(formData.get("id"));
   const orderTypeId = asString(formData.get("orderTypeId"));
+  const fileInput = formData.get("file");
+  const file = isUploadFile(fileInput)
+    ? ensureImageUpload(fileInput, "O arquivo do produto precisa ser uma imagem.")
+    : null;
+  const storedFile = isUploadFile(file)
+    ? await uploadStoredFile({
+        file,
+        objectPrefix: `order-types/${orderTypeId}/products/${id}`,
+        uploadedById: user.id,
+      })
+    : null;
 
   await (prisma.orderTypeProduct as any).update({
     where: { id },
     data: {
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
+      ...(storedFile ? { fileStoredFileId: storedFile.id } : {}),
       defaultQuantity: asOptionalString(formData.get("defaultQuantity"))
         ? asInt(formData.get("defaultQuantity"))
         : null,
@@ -1189,7 +1285,10 @@ export async function updateOrderPhaseInteraction(formData: FormData) {
 export async function createInvoice(formData: FormData) {
   const user = await requireCurrentUser();
   const orderId = asString(formData.get("orderId"));
-  const file = formData.get("file");
+  const fileInput = formData.get("file");
+  const file = isUploadFile(fileInput)
+    ? ensureDocumentUpload(fileInput, "O arquivo da nota fiscal precisa ser um documento.")
+    : null;
 
   await requireAccessibleOrder(orderId, user);
 
@@ -1219,13 +1318,9 @@ export async function createInvoice(formData: FormData) {
 export async function uploadOrderAttachment(formData: FormData) {
   const user = await requireCurrentUser();
   const orderId = asString(formData.get("orderId"));
-  const file = formData.get("file");
+  const file = ensureImageUpload(formData.get("file"), "O arquivo do pedido precisa ser uma imagem.");
 
   await requireAccessibleOrder(orderId, user);
-
-  if (!isUploadFile(file)) {
-    throw new Error("Selecione um arquivo para upload.");
-  }
 
   await uploadAndAttachFile({
     file,
@@ -1235,4 +1330,145 @@ export async function uploadOrderAttachment(formData: FormData) {
   });
 
   revalidateCrudPaths("/orders", getRedirectPath(formData, `/orders/${orderId}`));
+}
+
+export async function createOrderPaymentPlan(formData: FormData) {
+  const user = await requireCurrentUser();
+  requireAdminUser(user);
+
+  const orderId = asString(formData.get("orderId"));
+  await requireAccessibleOrder(orderId, user);
+
+  const totalAmount = Number(asDecimal(formData.get("totalAmount")) ?? "0");
+  const requestedInstallments = asRequiredInt(formData.get("installmentsCount"), "Quantidade de parcelas");
+  const installmentsCount = Math.max(1, requestedInstallments);
+  const method = asString(formData.get("method")) as PaymentMethod;
+  const firstDueAtValue = asString(formData.get("firstDueAt"));
+
+  if (!firstDueAtValue) {
+    throw new Error("Informe a data do primeiro vencimento.");
+  }
+
+  if (totalAmount <= 0) {
+    throw new Error("Informe um valor total maior que zero.");
+  }
+
+  const firstDueAt = new Date(firstDueAtValue);
+  const installmentMode =
+    installmentsCount > 1 ? PaymentInstallmentMode.INSTALLMENT : PaymentInstallmentMode.SINGLE;
+  const totalCents = Math.round(totalAmount * 100);
+  const baseInstallmentCents = Math.floor(totalCents / installmentsCount);
+  const remainder = totalCents - baseInstallmentCents * installmentsCount;
+
+  const plan = await prisma.orderPaymentPlan.create({
+    data: {
+      orderId,
+      createdById: user.id,
+      method,
+      installmentMode,
+      installmentsCount,
+      totalAmount: totalAmount.toFixed(2),
+      notes: asOptionalString(formData.get("notes")),
+    },
+  });
+
+  await prisma.orderPaymentInstallment.createMany({
+    data: Array.from({ length: installmentsCount }, (_, index) => {
+      const installmentCents = baseInstallmentCents + (index < remainder ? 1 : 0);
+
+      return {
+        planId: plan.id,
+        number: index + 1,
+        dueAt: addMonths(firstDueAt, index),
+        amount: (installmentCents / 100).toFixed(2),
+        status: OrderPaymentInstallmentStatus.OPEN,
+      };
+    }),
+  });
+
+  revalidateCrudPaths("/orders", getRedirectPath(formData, `/orders/${orderId}?tab=financial`));
+}
+
+export async function markOrderPaymentInstallmentPaid(formData: FormData) {
+  const user = await requireCurrentUser();
+  requireAdminUser(user);
+
+  const orderId = asString(formData.get("orderId"));
+  const installmentId = asString(formData.get("installmentId"));
+  await requireAccessibleOrder(orderId, user);
+
+  const installment = await prisma.orderPaymentInstallment.findUnique({
+    where: { id: installmentId },
+    include: {
+      plan: true,
+    },
+  });
+
+  if (!installment || installment.plan.orderId !== orderId) {
+    throw new Error("Parcela não encontrada.");
+  }
+
+  await prisma.orderPaymentInstallment.update({
+    where: { id: installmentId },
+    data: {
+      paidAt: asOptionalString(formData.get("paidAt")) ? new Date(asString(formData.get("paidAt"))) : new Date(),
+      notes: asOptionalString(formData.get("notes")) ?? installment.notes,
+      status: OrderPaymentInstallmentStatus.PAID,
+    },
+  });
+
+  revalidateCrudPaths("/orders", getRedirectPath(formData, `/orders/${orderId}?tab=financial`));
+}
+
+export async function deleteOrderPaymentPlan(formData: FormData) {
+  const user = await requireCurrentUser();
+  requireAdminUser(user);
+
+  const orderId = asString(formData.get("orderId"));
+  const planId = asString(formData.get("planId"));
+  await requireAccessibleOrder(orderId, user);
+
+  const plan = await prisma.orderPaymentPlan.findUnique({
+    where: { id: planId },
+  });
+
+  if (!plan || plan.orderId !== orderId) {
+    throw new Error("Plano financeiro não encontrado.");
+  }
+
+  await prisma.orderPaymentPlan.delete({
+    where: { id: planId },
+  });
+
+  revalidateCrudPaths("/orders", getRedirectPath(formData, `/orders/${orderId}?tab=financial`));
+}
+
+export async function reopenOrderPaymentInstallment(formData: FormData) {
+  const user = await requireCurrentUser();
+  requireAdminUser(user);
+
+  const orderId = asString(formData.get("orderId"));
+  const installmentId = asString(formData.get("installmentId"));
+  await requireAccessibleOrder(orderId, user);
+
+  const installment = await prisma.orderPaymentInstallment.findUnique({
+    where: { id: installmentId },
+    include: {
+      plan: true,
+    },
+  });
+
+  if (!installment || installment.plan.orderId !== orderId) {
+    throw new Error("Parcela não encontrada.");
+  }
+
+  await prisma.orderPaymentInstallment.update({
+    where: { id: installmentId },
+    data: {
+      paidAt: null,
+      status: OrderPaymentInstallmentStatus.OPEN,
+    },
+  });
+
+  revalidateCrudPaths("/orders", getRedirectPath(formData, `/orders/${orderId}?tab=financial`));
 }

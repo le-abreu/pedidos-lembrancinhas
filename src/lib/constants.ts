@@ -53,10 +53,16 @@ export const navigationItems = [
     label: "Pedidos",
     allowedProfiles: [UserProfileType.ADMIN, UserProfileType.CLIENT, UserProfileType.EXECUTOR],
   },
+  {
+    href: "/financial",
+    label: "Financeiro",
+    allowedProfiles: [UserProfileType.ADMIN, UserProfileType.CLIENT, UserProfileType.EXECUTOR],
+  },
 ];
 
 export const orderTabs = [
   { key: "overview", label: "Dados do pedido" },
+  { key: "financial", label: "Financeiro" },
   { key: "workflow", label: "Workflow" },
   { key: "interaction", label: "Interações" },
   { key: "invoice", label: "Notas fiscais" },

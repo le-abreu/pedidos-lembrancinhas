@@ -61,7 +61,7 @@ function buildObjectKey(prefix: string, originalName: string) {
   return `${prefix}/${randomUUID()}-${sanitizedName}`;
 }
 
-async function uploadStoredFile(params: {
+export async function uploadStoredFile(params: {
   file: File;
   objectPrefix: string;
   uploadedById?: string | null;

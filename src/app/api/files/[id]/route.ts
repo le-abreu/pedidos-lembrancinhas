@@ -13,22 +13,52 @@ type RouteContext = {
 
 async function canAccessStoredFile(storedFileId: string) {
   const user = await requireCurrentUser();
+  const scope = buildOrderScope(user);
 
   if (user.avatarStoredFile?.id === storedFileId) {
     return true;
   }
 
   if (user.profiles.some((item) => item.profile === "ADMIN")) {
-    const attachment = await (prisma as any).fileAttachment.findFirst({
-      where: { storedFileId },
-    });
-    return Boolean(attachment);
+    const [attachment, orderType, product] = await Promise.all([
+      (prisma as any).fileAttachment.findFirst({
+        where: { storedFileId },
+      }),
+      (prisma as any).orderType.findFirst({
+        where: { fileStoredFileId: storedFileId },
+      }),
+      (prisma as any).orderTypeProduct.findFirst({
+        where: { fileStoredFileId: storedFileId },
+      }),
+    ]);
+    return Boolean(attachment || orderType || product);
   }
 
-  const scope = buildOrderScope(user);
   const attachments = await (prisma as any).fileAttachment.findMany({
     where: { storedFileId },
   });
+  const [orderType, product] = await Promise.all([
+    (prisma as any).orderType.findFirst({
+      where: {
+        fileStoredFileId: storedFileId,
+        orders: scope,
+      },
+    }),
+    (prisma as any).orderTypeProduct.findFirst({
+      where: {
+        fileStoredFileId: storedFileId,
+        orderItems: {
+          some: {
+            order: scope,
+          },
+        },
+      },
+    }),
+  ]);
+
+  if (orderType || product) {
+    return true;
+  }
 
   for (const attachment of attachments) {
     if (attachment.entityType === "ORDER") {

@@ -41,6 +41,10 @@ export default async function EditOrderTypePage({ params, searchParams }: PagePr
     defaultUnitWeight: { toString(): string } | null;
     required: boolean;
     active: boolean;
+    fileStoredFile?: {
+      id: string;
+      originalName: string;
+    } | null;
   }>;
   const unitTemplateTotal = products.reduce(
     (sum, product) => sum + (product.defaultQuantity ?? 0) * Number(product.defaultUnitPrice?.toString() ?? 0),
@@ -118,6 +122,7 @@ export default async function EditOrderTypePage({ params, searchParams }: PagePr
                   <th>Custo padrão</th>
                   <th>Total por produto</th>
                   <th>Peso padrão</th>
+                  <th>Arquivo</th>
                   <th>Obrigatório</th>
                   <th>Status</th>
                   <th>Ações</th>
@@ -137,6 +142,15 @@ export default async function EditOrderTypePage({ params, searchParams }: PagePr
                         )}
                       </td>
                       <td>{product.defaultUnitWeight?.toString() ?? "-"} kg</td>
+                      <td>
+                        {product.fileStoredFile ? (
+                          <a href={`/api/files/${product.fileStoredFile.id}`} target="_blank">
+                            {product.fileStoredFile.originalName}
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                       <td>{product.required ? "Sim" : "Nao"}</td>
                       <td>
                         <span className="badge">{product.active ? "Ativo" : "Inativo"}</span>
@@ -179,7 +193,7 @@ export default async function EditOrderTypePage({ params, searchParams }: PagePr
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={9}>Nenhum produto configurado para este tipo.</td>
+                    <td colSpan={10}>Nenhum produto configurado para este tipo.</td>
                   </tr>
                 )}
               </tbody>
