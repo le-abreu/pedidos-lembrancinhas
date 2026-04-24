@@ -1,0 +1,7 @@
+services:
+  app:
+    environment:
+      NODE_ENV: development
+      RUN_MIGRATIONS: "true"
+    command: ["node", "server.js"]
+

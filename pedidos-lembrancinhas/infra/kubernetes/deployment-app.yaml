@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedido-lembrancinha-app
+  namespace: pedido-lembrancinha
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedido-lembrancinha-app
+  template:
+    metadata:
+      labels:
+        app: pedido-lembrancinha-app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/example/pedido-lembrancinha:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: pedido-lembrancinha-config
+            - secretRef:
+                name: pedido-lembrancinha-secret
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
