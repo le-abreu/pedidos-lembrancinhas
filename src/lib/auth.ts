@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { UserProfileType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { getCustomerAccessMap, getSupplierAccessMap } from "@/server/services/user-access-service";
 
 const AUTH_COOKIE = "pedido-poc-user";
 
@@ -39,7 +40,7 @@ export async function getCurrentUser() {
     return null;
   }
 
-  return prisma.user.findUnique({
+  const user = await (prisma.user as any).findUnique({
     where: { id: userId },
     include: {
       avatarStoredFile: {
@@ -51,6 +52,39 @@ export async function getCurrentUser() {
       profiles: true,
     },
   });
+
+  if (!user) {
+    return null;
+  }
+
+  const [customerAccessMap, supplierAccessMap] = await Promise.all([
+    getCustomerAccessMap([user.id]),
+    getSupplierAccessMap([user.id]),
+  ]);
+
+  return {
+    ...user,
+    customerAccesses: (customerAccessMap.get(user.id) ?? []).map((item) => ({
+      customerId: item.customerId,
+      customer: {
+        id: item.customerId,
+        name: item.customerName,
+        companyId: item.companyId,
+        company: {
+          id: item.companyId,
+          tradeName: item.companyTradeName,
+        },
+      },
+    })),
+    supplierAccesses: (supplierAccessMap.get(user.id) ?? []).map((item) => ({
+      supplierId: item.supplierId,
+      role: item.role,
+      supplier: {
+        id: item.supplierId,
+        name: item.supplierName,
+      },
+    })),
+  } as any;
 }
 
 export async function requireCurrentUser() {

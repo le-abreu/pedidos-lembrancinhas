@@ -9,6 +9,7 @@ import { FormCard } from "@/components/form-card";
 import { PageHeader } from "@/components/page-header";
 import { PaginationControls } from "@/components/pagination-controls";
 import { requireAnyProfile } from "@/lib/auth";
+import { formatDate } from "@/lib/format";
 import { parseActiveFilter, parsePage, parseSearch } from "@/lib/pagination";
 import { getUsersList } from "@/server/services/admin-service";
 
@@ -34,6 +35,7 @@ export default async function UsersPage({ searchParams }: PageProps) {
     companyId,
     profile,
   });
+  type UserListItem = (typeof items)[number];
 
   return (
     <div className="page-stack">
@@ -91,20 +93,64 @@ export default async function UsersPage({ searchParams }: PageProps) {
         </form>
       </FormCard>
 
-      <DataTable
+      <DataTable<UserListItem>
         columns={[
           { key: "nome", header: "Usuário", render: (item) => item.name },
           { key: "email", header: "E-mail", render: (item) => item.email },
           {
             key: "perfis",
             header: "Perfis",
-            render: (item) => item.profiles.map((profileItem) => profileItem.profile).join(", "),
+            render: (item) =>
+              item.profiles
+                .map((profileItem: { profile: UserProfileType }) => profileItem.profile)
+                .join(", "),
           },
-          { key: "empresa", header: "Empresa", render: (item) => item.company?.tradeName ?? "-" },
+          {
+            key: "empresa",
+            header: "Empresas",
+            render: (item) => {
+              const companies = item.customerAccesses?.length
+                ? [
+                    ...new Set(
+                      item.customerAccesses
+                        .map((access: { customer?: { company?: { tradeName?: string | null } | null } | null }) =>
+                          access.customer?.company?.tradeName,
+                        )
+                        .filter(Boolean),
+                    ),
+                  ]
+                : item.company?.tradeName
+                  ? [item.company.tradeName]
+                  : [];
+
+              return companies.join(", ") || "-";
+            },
+          },
           {
             key: "vinculos",
             header: "Vínculos",
-            render: (item) => item.customer?.name ?? item.supplier?.name ?? "-",
+            render: (item) => {
+              const customerNames =
+                item.customerAccesses
+                  ?.map((access: { customer?: { name?: string | null } | null }) => access.customer?.name)
+                  .filter(Boolean) ?? [];
+              const supplierNames =
+                item.supplierAccesses
+                  ?.map(
+                    (access: {
+                      role?: string | null;
+                      supplier?: { name?: string | null } | null;
+                    }) => (access.role ? `${access.supplier?.name} (${access.role})` : access.supplier?.name),
+                  )
+                  .filter(Boolean) ?? [];
+
+              return [...customerNames, ...supplierNames].join(", ") || item.customer?.name || item.supplier?.name || "-";
+            },
+          },
+          {
+            key: "datas",
+            header: "Datas",
+            render: (item) => `Cad. ${formatDate(item.createdAt)} | Alt. ${formatDate(item.updatedAt)}`,
           },
           {
             key: "acoes",

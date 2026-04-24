@@ -73,11 +73,7 @@ type OverduePaymentRow = {
 };
 
 export default async function FinancialPage({ searchParams }: PageProps) {
-  const user = await requireAnyProfile([
-    UserProfileType.ADMIN,
-    UserProfileType.CLIENT,
-    UserProfileType.EXECUTOR,
-  ]);
+  const user = await requireAnyProfile([UserProfileType.ADMIN]);
 
   const page = parsePage(searchParams?.page);
   const search = parseSearch(searchParams?.search);
@@ -275,7 +271,7 @@ export default async function FinancialPage({ searchParams }: PageProps) {
                 <span>Empresa</span>
                 <select name="companyId" defaultValue={filters.companyId}>
                   <option value="">Todas</option>
-                  {filterOptions.companies.map((item) => (
+                  {filterOptions.companies.map((item: { id: string; tradeName: string }) => (
                     <option key={item.id} value={item.id}>
                       {item.tradeName}
                     </option>
@@ -286,7 +282,7 @@ export default async function FinancialPage({ searchParams }: PageProps) {
                 <span>Cliente</span>
                 <select name="customerId" defaultValue={filters.customerId}>
                   <option value="">Todos</option>
-                  {filterOptions.customers.map((item) => (
+                  {filterOptions.customers.map((item: { id: string; name: string }) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
@@ -297,7 +293,7 @@ export default async function FinancialPage({ searchParams }: PageProps) {
                 <span>Status do pedido</span>
                 <select name="statusId" defaultValue={filters.statusId}>
                   <option value="">Todos</option>
-                  {filterOptions.statuses.map((item) => (
+                  {filterOptions.statuses.map((item: { id: string; name: string }) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>

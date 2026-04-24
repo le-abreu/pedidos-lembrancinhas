@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { replaceUserCustomerAccesses, replaceUserSupplierAccesses } from "@/server/services/user-access-service";
 
 export async function GET() {
-  const users = await prisma.user.findMany({
+  const users = await (prisma.user as any).findMany({
     orderBy: { name: "asc" },
     include: {
       profiles: true,
@@ -17,11 +19,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const user = await prisma.user.create({
+  const user = await (prisma.user as any).create({
     data: {
       name: body.name,
       email: body.email,
-      password: body.password,
+      password: hashPassword(body.password),
       active: body.active ?? true,
       companyId: body.companyId ?? null,
       customerId: body.customerId ?? null,
@@ -35,6 +37,8 @@ export async function POST(request: Request) {
     include: { profiles: true },
   });
 
+  await replaceUserCustomerAccesses(user.id, body.customerAccessIds ?? []);
+  await replaceUserSupplierAccesses(user.id, body.supplierAccesses ?? []);
+
   return NextResponse.json(user, { status: 201 });
 }
-

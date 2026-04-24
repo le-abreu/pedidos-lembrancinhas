@@ -2,10 +2,7 @@
 
 import {
   ExpectedFileType,
-  PaymentInstallmentMode,
-  PaymentMethod,
   PhaseExecutionStatus,
-  OrderPaymentInstallmentStatus,
   SupplierType,
   UserProfileType,
 } from "@prisma/client";
@@ -14,7 +11,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireCurrentUser } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import {
+  canAccessSupplier,
+  getAccessibleCompanyIds,
+  getAccessibleCustomerIds,
+} from "@/lib/user-access";
 import { buildOrderScope } from "@/server/services/order-service";
 import {
   isUploadFile,
@@ -22,6 +25,10 @@ import {
   uploadStoredFile,
   uploadUserAvatar,
 } from "@/server/services/file-storage-service";
+import {
+  replaceUserCustomerAccesses,
+  replaceUserSupplierAccesses,
+} from "@/server/services/user-access-service";
 
 function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value : "";
@@ -56,6 +63,16 @@ function asRequiredInt(value: FormDataEntryValue | null, fieldLabel: string) {
   return parsed;
 }
 
+function asRequiredNonNegativeInt(value: FormDataEntryValue | null, fieldLabel: string) {
+  const parsed = Number(asString(value));
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${fieldLabel} deve ser zero ou maior.`);
+  }
+
+  return parsed;
+}
+
 function getRedirectPath(formData: FormData, fallback: string) {
   return asOptionalString(formData.get("redirectPath")) ?? fallback;
 }
@@ -71,6 +88,45 @@ function withSuccessMessage(path: string, message: string) {
 
 function getProfileValues(formData: FormData) {
   return formData.getAll("profiles").map((value) => value.toString() as UserProfileType);
+}
+
+function getSelectedIds(formData: FormData, field: string) {
+  return [...new Set(formData.getAll(field).map((value) => value.toString()).filter(Boolean))];
+}
+
+function getSelectedUploadFiles(formData: FormData, field: string) {
+  return formData.getAll(field).filter(isUploadFile);
+}
+
+function getSupplierAccessValues(formData: FormData) {
+  return getSelectedIds(formData, "supplierAccessId").map((supplierId) => ({
+    supplierId,
+    role: asOptionalString(formData.get(`supplierAccessRole:${supplierId}`)),
+  }));
+}
+
+function getUserAccessPayload(formData: FormData, profiles: UserProfileType[]) {
+  const isAdminProfile = profiles.includes(UserProfileType.ADMIN);
+  const isClientProfile = profiles.includes(UserProfileType.CLIENT);
+  const isExecutorProfile = profiles.includes(UserProfileType.EXECUTOR);
+  const customerIds = isAdminProfile ? [] : isClientProfile ? getSelectedIds(formData, "customerAccessId") : [];
+  const supplierAccesses = isAdminProfile ? [] : isExecutorProfile ? getSupplierAccessValues(formData) : [];
+
+  if (isClientProfile && !customerIds.length) {
+    throw new Error("Selecione ao menos um cliente para o perfil CLIENT.");
+  }
+
+  if (isExecutorProfile && !supplierAccesses.length) {
+    throw new Error("Selecione ao menos um fornecedor para o perfil EXECUTOR.");
+  }
+
+  return {
+    companyId: customerIds.length ? asOptionalString(formData.get("primaryCompanyId")) : null,
+    customerId: customerIds[0] ?? null,
+    supplierId: supplierAccesses[0]?.supplierId ?? null,
+    customerIds,
+    supplierAccesses,
+  };
 }
 
 function getFileExtension(fileName: string) {
@@ -111,11 +167,11 @@ function ensureDocumentUpload(file: FormDataEntryValue | null, message: string) 
 }
 
 function isAdminUser(user: { profiles: Array<{ profile: UserProfileType }> }) {
-  return user.profiles.some((item) => item.profile === UserProfileType.ADMIN);
+  return user.profiles.some((item: { profile: UserProfileType }) => item.profile === UserProfileType.ADMIN);
 }
 
 function isExecutorUser(user: { profiles: Array<{ profile: UserProfileType }> }) {
-  return user.profiles.some((item) => item.profile === UserProfileType.EXECUTOR);
+  return user.profiles.some((item: { profile: UserProfileType }) => item.profile === UserProfileType.EXECUTOR);
 }
 
 function requireAdminUser(user: { profiles: Array<{ profile: UserProfileType }> }) {
@@ -125,7 +181,11 @@ function requireAdminUser(user: { profiles: Array<{ profile: UserProfileType }> 
 }
 
 function canInteractWithExecution(
-  user: { supplierId: string | null; profiles: Array<{ profile: UserProfileType }> },
+  user: {
+    supplierId: string | null;
+    supplierAccesses?: Array<{ supplierId: string }>;
+    profiles: Array<{ profile: UserProfileType }>;
+  },
   execution: {
     supplierId: string | null;
     phase: { requiresSupplier: boolean; responsibleSupplierId: string | null };
@@ -140,15 +200,11 @@ function canInteractWithExecution(
   }
 
   if (execution.phase.requiresSupplier) {
-    return Boolean(
-      user.supplierId &&
-        execution.phase.responsibleSupplierId &&
-        user.supplierId === execution.phase.responsibleSupplierId,
-    );
+    return canAccessSupplier(user, execution.phase.responsibleSupplierId);
   }
 
   if (execution.supplierId) {
-    return user.supplierId === execution.supplierId;
+    return canAccessSupplier(user, execution.supplierId);
   }
 
   return true;
@@ -166,6 +222,23 @@ function getResponsibleSupplierData(formData: FormData) {
 
   return { requiresSupplier, responsibleSupplierId };
 }
+
+const PAYMENT_INSTALLMENT_MODE = {
+  SINGLE: "SINGLE",
+  INSTALLMENT: "INSTALLMENT",
+} as const;
+
+const PAYMENT_METHOD = {
+  PIX: "PIX",
+  TRANSFER: "TRANSFER",
+  CREDIT_CARD: "CREDIT_CARD",
+  BOLETO: "BOLETO",
+} as const;
+
+const ORDER_PAYMENT_INSTALLMENT_STATUS = {
+  OPEN: "OPEN",
+  PAID: "PAID",
+} as const;
 
 function revalidateCrudPaths(basePath: string, redirectPath?: string) {
   revalidatePath(basePath);
@@ -213,7 +286,7 @@ export async function updateCurrentUserPassword(formData: FormData) {
   const newPassword = asString(formData.get("newPassword"));
   const confirmPassword = asString(formData.get("confirmPassword"));
 
-  if (currentPassword !== user.password) {
+  if (!verifyPassword(currentPassword, user.password)) {
     throw new Error("A senha atual informada não confere.");
   }
 
@@ -228,7 +301,7 @@ export async function updateCurrentUserPassword(formData: FormData) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      password: newPassword,
+      password: hashPassword(newPassword),
     },
   });
 
@@ -440,16 +513,22 @@ export async function toggleSupplierActive(formData: FormData) {
 
 export async function createUser(formData: FormData) {
   const profileValues = getProfileValues(formData);
+  const password = asString(formData.get("password"));
+  const accessPayload = getUserAccessPayload(formData, profileValues);
+
+  if (password.length < 6) {
+    throw new Error("A senha deve ter pelo menos 6 caracteres.");
+  }
 
   const user = await prisma.user.create({
     data: {
       name: asString(formData.get("name")),
       email: asString(formData.get("email")),
-      password: asString(formData.get("password")),
+      password: hashPassword(password),
       active: true,
-      companyId: asOptionalString(formData.get("companyId")),
-      customerId: asOptionalString(formData.get("customerId")),
-      supplierId: asOptionalString(formData.get("supplierId")),
+      companyId: accessPayload.companyId,
+      customerId: accessPayload.customerId,
+      supplierId: accessPayload.supplierId,
     },
   });
 
@@ -457,6 +536,14 @@ export async function createUser(formData: FormData) {
     await prisma.userProfile.createMany({
       data: profileValues.map((profile) => ({ userId: user.id, profile })),
     });
+  }
+
+  if (accessPayload.customerIds.length) {
+    await replaceUserCustomerAccesses(user.id, accessPayload.customerIds);
+  }
+
+  if (accessPayload.supplierAccesses.length) {
+    await replaceUserSupplierAccesses(user.id, accessPayload.supplierAccesses);
   }
 
   revalidateCrudPaths(
@@ -468,16 +555,27 @@ export async function createUser(formData: FormData) {
 export async function updateUser(formData: FormData) {
   const id = asString(formData.get("id"));
   const profileValues = getProfileValues(formData);
+  const currentUser = await prisma.user.findUnique({
+    where: { id },
+    select: { password: true },
+  });
+
+  if (!currentUser) {
+    throw new Error("Usuário não encontrado.");
+  }
+
+  const nextPassword = asString(formData.get("password"));
+  const accessPayload = getUserAccessPayload(formData, profileValues);
 
   await prisma.user.update({
     where: { id },
     data: {
       name: asString(formData.get("name")),
       email: asString(formData.get("email")),
-      password: asString(formData.get("password")),
-      companyId: asOptionalString(formData.get("companyId")),
-      customerId: asOptionalString(formData.get("customerId")),
-      supplierId: asOptionalString(formData.get("supplierId")),
+      password: nextPassword ? hashPassword(nextPassword) : currentUser.password,
+      companyId: accessPayload.companyId,
+      customerId: accessPayload.customerId,
+      supplierId: accessPayload.supplierId,
     },
   });
 
@@ -489,6 +587,18 @@ export async function updateUser(formData: FormData) {
     await prisma.userProfile.createMany({
       data: profileValues.map((profile) => ({ userId: id, profile })),
     });
+  }
+
+  if (accessPayload.customerIds.length) {
+    await replaceUserCustomerAccesses(id, accessPayload.customerIds);
+  } else {
+    await replaceUserCustomerAccesses(id, []);
+  }
+
+  if (accessPayload.supplierAccesses.length) {
+    await replaceUserSupplierAccesses(id, accessPayload.supplierAccesses);
+  } else {
+    await replaceUserSupplierAccesses(id, []);
   }
 
   revalidateCrudPaths(
@@ -915,12 +1025,17 @@ export async function toggleWorkflowPhaseActive(formData: FormData) {
 
 export async function createOrder(formData: FormData) {
   const user = await requireCurrentUser();
-  const isClient = user.profiles.some((item) => item.profile === UserProfileType.CLIENT);
+  const isClient = user.profiles.some(
+    (item: { profile: UserProfileType }) => item.profile === UserProfileType.CLIENT,
+  );
   const orderTypeId = asString(formData.get("orderTypeId"));
   const requestedQuantity = asRequiredInt(formData.get("requestedQuantity"), "Quantidade de lembrancinhas");
   const shippingMethodId = asString(formData.get("shippingMethodId"));
   const shippingPrice = asDecimal(formData.get("shippingPrice")) ?? "0";
   const deliveryAddress = asOptionalString(formData.get("deliveryAddress"));
+  const additionalChargeAmount = asDecimal(formData.get("additionalChargeAmount")) ?? "0";
+  const additionalChargeReason = asOptionalString(formData.get("additionalChargeReason"));
+  const orderPhotoFiles = getSelectedUploadFiles(formData, "orderPhoto");
   const workflow = await prisma.workflow.findUnique({
     where: { orderTypeId },
     include: {
@@ -935,6 +1050,19 @@ export async function createOrder(formData: FormData) {
     throw new Error("Tipo de pedido sem workflow configurado.");
   }
 
+  const currentStatusId =
+    asString(formData.get("currentStatusId")) ||
+    (await prisma.orderStatus.findFirst({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true },
+    }))?.id ||
+    "";
+
+  if (!currentStatusId) {
+    throw new Error("Nenhum status inicial está configurado.");
+  }
+
   if (!shippingMethodId) {
     throw new Error("Selecione o tipo de frete.");
   }
@@ -943,16 +1071,45 @@ export async function createOrder(formData: FormData) {
     throw new Error("Informe o endereço de entrega.");
   }
 
+  const selectedCustomerId = asString(formData.get("customerId"));
+  const selectedCompanyId = asString(formData.get("companyId"));
+  const accessibleCustomerIds = getAccessibleCustomerIds(user);
+  const accessibleCompanyIds = getAccessibleCompanyIds(user);
+  const selectedCustomer = isClient
+    ? await prisma.customer.findFirst({
+        where: {
+          id: selectedCustomerId,
+          active: true,
+        },
+      })
+    : null;
+
+  if (isClient) {
+    if (!accessibleCustomerIds.length) {
+      throw new Error("Usuário cliente sem clientes vinculados.");
+    }
+
+    if (!selectedCustomer || !accessibleCustomerIds.includes(selectedCustomer.id)) {
+      throw new Error("Selecione um cliente permitido para este usuário.");
+    }
+
+    if (accessibleCompanyIds.length && !accessibleCompanyIds.includes(selectedCustomer.companyId)) {
+      throw new Error("Cliente fora do escopo permitido para este usuário.");
+    }
+  }
+
   const order = await (prisma.order as any).create({
     data: {
-      companyId: isClient ? user.companyId ?? "" : asString(formData.get("companyId")),
-      customerId: isClient ? user.customerId ?? "" : asString(formData.get("customerId")),
+      companyId: isClient ? selectedCustomer?.companyId ?? "" : selectedCompanyId,
+      customerId: isClient ? selectedCustomer?.id ?? "" : selectedCustomerId,
       orderTypeId,
       workflowId: workflow.id,
-      currentStatusId: asString(formData.get("currentStatusId")),
+      currentStatusId,
       createdById: user.id,
       shippingMethodId,
       shippingPrice,
+      additionalChargeAmount,
+      additionalChargeReason,
       requestedQuantity,
       deliveryAddress,
       title: asString(formData.get("title")),
@@ -966,35 +1123,31 @@ export async function createOrder(formData: FormData) {
     },
   });
 
-  const selectedProducts = formData
-    .getAll("productId")
-    .map((value) => value.toString())
-    .filter(Boolean);
+  const selectedProducts = getSelectedIds(formData, "productId");
 
   const selectedSuppliers = formData
     .getAll("supplierId")
     .map((value) => value.toString())
     .filter(Boolean);
 
-  if (isClient && (!user.companyId || !user.customerId)) {
-    throw new Error("Usuário cliente sem empresa ou cliente vinculado.");
-  }
-
-  if (selectedProducts.length) {
-    const products = (await prisma.orderTypeProduct.findMany({
-      where: { id: { in: selectedProducts } },
-    })) as unknown as Array<{
+  const products = (await prisma.orderTypeProduct.findMany({
+    where: selectedProducts.length ? { id: { in: selectedProducts } } : { orderTypeId, active: true },
+  })) as unknown as Array<{
       id: string;
       defaultQuantity: number | null;
       defaultUnitPrice: string | null;
       defaultUnitWeight: string | null;
-    }>;
+  }>;
 
+  if (products.length) {
     await prisma.orderItem.createMany({
       data: products.map((product) => ({
         orderId: order.id,
         productId: product.id,
-        quantity: requestedQuantity * (product.defaultQuantity ?? 1),
+        quantity: asRequiredNonNegativeInt(
+          formData.get(`productQuantity:${product.id}`),
+          `Quantidade do item ${product.id}`,
+        ) || requestedQuantity * (product.defaultQuantity ?? 1),
         unitPrice: product.defaultUnitPrice,
         unitWeight: product.defaultUnitWeight,
       })),
@@ -1037,6 +1190,19 @@ export async function createOrder(formData: FormData) {
     })),
   });
 
+  if (orderPhotoFiles.length) {
+    await Promise.all(
+      orderPhotoFiles.map((file) =>
+        uploadAndAttachFile({
+          file,
+          entityType: "ORDER",
+          entityId: order.id,
+          uploadedById: user.id,
+        }),
+      ),
+    );
+  }
+
   revalidateCrudPaths(
     "/orders",
     withSuccessMessage(getRedirectPath(formData, `/orders/${order.id}`), "Pedido cadastrado com sucesso."),
@@ -1045,18 +1211,24 @@ export async function createOrder(formData: FormData) {
 
 export async function updateOrder(formData: FormData) {
   const id = asString(formData.get("id"));
+  const existingOrder = await prisma.order.findUnique({
+    where: { id },
+    select: { createdById: true, orderTypeId: true },
+  });
+
+  if (!existingOrder) {
+    throw new Error("Pedido não encontrado.");
+  }
+
   const requestedQuantity = asRequiredInt(formData.get("requestedQuantity"), "Quantidade de lembrancinhas");
   const shippingMethodId = asString(formData.get("shippingMethodId"));
   const shippingPrice = asDecimal(formData.get("shippingPrice")) ?? "0";
   const deliveryAddress = asOptionalString(formData.get("deliveryAddress"));
-  const selectedProducts = formData
-    .getAll("productId")
-    .map((value) => value.toString())
-    .filter(Boolean);
-  const selectedSuppliers = formData
-    .getAll("supplierId")
-    .map((value) => value.toString())
-    .filter(Boolean);
+  const additionalChargeAmount = asDecimal(formData.get("additionalChargeAmount")) ?? "0";
+  const additionalChargeReason = asOptionalString(formData.get("additionalChargeReason"));
+  const selectedProducts = getSelectedIds(formData, "productId");
+  const selectedSuppliers = getSelectedIds(formData, "supplierId");
+  const orderPhotoFiles = getSelectedUploadFiles(formData, "orderPhoto");
 
   if (!shippingMethodId) {
     throw new Error("Selecione o tipo de frete.");
@@ -1072,9 +1244,11 @@ export async function updateOrder(formData: FormData) {
       companyId: asString(formData.get("companyId")),
       customerId: asString(formData.get("customerId")),
       currentStatusId: asString(formData.get("currentStatusId")),
-      createdById: asString(formData.get("createdById")),
+      createdById: existingOrder.createdById,
       shippingMethodId,
       shippingPrice,
+      additionalChargeAmount,
+      additionalChargeReason,
       requestedQuantity,
       deliveryAddress,
       title: asString(formData.get("title")),
@@ -1091,21 +1265,26 @@ export async function updateOrder(formData: FormData) {
     where: { orderId: id },
   });
 
-  if (selectedProducts.length) {
-    const products = (await prisma.orderTypeProduct.findMany({
-      where: { id: { in: selectedProducts } },
-    })) as unknown as Array<{
+  const products = (await prisma.orderTypeProduct.findMany({
+    where: selectedProducts.length
+      ? { id: { in: selectedProducts } }
+      : { orderTypeId: existingOrder.orderTypeId, active: true },
+  })) as unknown as Array<{
       id: string;
       defaultQuantity: number | null;
       defaultUnitPrice: string | null;
       defaultUnitWeight: string | null;
-    }>;
+  }>;
 
+  if (products.length) {
     await prisma.orderItem.createMany({
       data: products.map((product) => ({
         orderId: id,
         productId: product.id,
-        quantity: requestedQuantity * (product.defaultQuantity ?? 1),
+        quantity: asRequiredNonNegativeInt(
+          formData.get(`productQuantity:${product.id}`),
+          `Quantidade do item ${product.id}`,
+        ) || requestedQuantity * (product.defaultQuantity ?? 1),
         unitPrice: product.defaultUnitPrice,
         unitWeight: product.defaultUnitWeight,
       })),
@@ -1124,6 +1303,20 @@ export async function updateOrder(formData: FormData) {
         role: "Participante do pedido",
       })),
     });
+  }
+
+  if (orderPhotoFiles.length) {
+    const user = await requireCurrentUser();
+    await Promise.all(
+      orderPhotoFiles.map((file) =>
+        uploadAndAttachFile({
+          file,
+          entityType: "ORDER",
+          entityId: id,
+          uploadedById: user.id,
+        }),
+      ),
+    );
   }
 
   revalidateCrudPaths(
@@ -1342,7 +1535,7 @@ export async function createOrderPaymentPlan(formData: FormData) {
   const totalAmount = Number(asDecimal(formData.get("totalAmount")) ?? "0");
   const requestedInstallments = asRequiredInt(formData.get("installmentsCount"), "Quantidade de parcelas");
   const installmentsCount = Math.max(1, requestedInstallments);
-  const method = asString(formData.get("method")) as PaymentMethod;
+  const method = asString(formData.get("method")) as (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];
   const firstDueAtValue = asString(formData.get("firstDueAt"));
 
   if (!firstDueAtValue) {
@@ -1355,12 +1548,12 @@ export async function createOrderPaymentPlan(formData: FormData) {
 
   const firstDueAt = new Date(firstDueAtValue);
   const installmentMode =
-    installmentsCount > 1 ? PaymentInstallmentMode.INSTALLMENT : PaymentInstallmentMode.SINGLE;
+    installmentsCount > 1 ? PAYMENT_INSTALLMENT_MODE.INSTALLMENT : PAYMENT_INSTALLMENT_MODE.SINGLE;
   const totalCents = Math.round(totalAmount * 100);
   const baseInstallmentCents = Math.floor(totalCents / installmentsCount);
   const remainder = totalCents - baseInstallmentCents * installmentsCount;
 
-  const plan = await prisma.orderPaymentPlan.create({
+  const plan = await (prisma as any).orderPaymentPlan.create({
     data: {
       orderId,
       createdById: user.id,
@@ -1372,7 +1565,7 @@ export async function createOrderPaymentPlan(formData: FormData) {
     },
   });
 
-  await prisma.orderPaymentInstallment.createMany({
+  await (prisma as any).orderPaymentInstallment.createMany({
     data: Array.from({ length: installmentsCount }, (_, index) => {
       const installmentCents = baseInstallmentCents + (index < remainder ? 1 : 0);
 
@@ -1381,7 +1574,7 @@ export async function createOrderPaymentPlan(formData: FormData) {
         number: index + 1,
         dueAt: addMonths(firstDueAt, index),
         amount: (installmentCents / 100).toFixed(2),
-        status: OrderPaymentInstallmentStatus.OPEN,
+        status: ORDER_PAYMENT_INSTALLMENT_STATUS.OPEN,
       };
     }),
   });
@@ -1397,7 +1590,7 @@ export async function markOrderPaymentInstallmentPaid(formData: FormData) {
   const installmentId = asString(formData.get("installmentId"));
   await requireAccessibleOrder(orderId, user);
 
-  const installment = await prisma.orderPaymentInstallment.findUnique({
+  const installment = await (prisma as any).orderPaymentInstallment.findUnique({
     where: { id: installmentId },
     include: {
       plan: true,
@@ -1408,12 +1601,12 @@ export async function markOrderPaymentInstallmentPaid(formData: FormData) {
     throw new Error("Parcela não encontrada.");
   }
 
-  await prisma.orderPaymentInstallment.update({
+  await (prisma as any).orderPaymentInstallment.update({
     where: { id: installmentId },
     data: {
       paidAt: asOptionalString(formData.get("paidAt")) ? new Date(asString(formData.get("paidAt"))) : new Date(),
       notes: asOptionalString(formData.get("notes")) ?? installment.notes,
-      status: OrderPaymentInstallmentStatus.PAID,
+      status: ORDER_PAYMENT_INSTALLMENT_STATUS.PAID,
     },
   });
 
@@ -1428,7 +1621,7 @@ export async function deleteOrderPaymentPlan(formData: FormData) {
   const planId = asString(formData.get("planId"));
   await requireAccessibleOrder(orderId, user);
 
-  const plan = await prisma.orderPaymentPlan.findUnique({
+  const plan = await (prisma as any).orderPaymentPlan.findUnique({
     where: { id: planId },
   });
 
@@ -1436,7 +1629,7 @@ export async function deleteOrderPaymentPlan(formData: FormData) {
     throw new Error("Plano financeiro não encontrado.");
   }
 
-  await prisma.orderPaymentPlan.delete({
+  await (prisma as any).orderPaymentPlan.delete({
     where: { id: planId },
   });
 
@@ -1451,7 +1644,7 @@ export async function reopenOrderPaymentInstallment(formData: FormData) {
   const installmentId = asString(formData.get("installmentId"));
   await requireAccessibleOrder(orderId, user);
 
-  const installment = await prisma.orderPaymentInstallment.findUnique({
+  const installment = await (prisma as any).orderPaymentInstallment.findUnique({
     where: { id: installmentId },
     include: {
       plan: true,
@@ -1462,11 +1655,11 @@ export async function reopenOrderPaymentInstallment(formData: FormData) {
     throw new Error("Parcela não encontrada.");
   }
 
-  await prisma.orderPaymentInstallment.update({
+  await (prisma as any).orderPaymentInstallment.update({
     where: { id: installmentId },
     data: {
       paidAt: null,
-      status: OrderPaymentInstallmentStatus.OPEN,
+      status: ORDER_PAYMENT_INSTALLMENT_STATUS.OPEN,
     },
   });
 

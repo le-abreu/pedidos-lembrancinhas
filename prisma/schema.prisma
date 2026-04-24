@@ -81,6 +81,7 @@ model Customer {
   notes       String?
   active      Boolean   @default(true)
   users       User[]
+  userAccesses UserCustomerAccess[]
   orders      Order[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -96,6 +97,7 @@ model Supplier {
   notes           String?
   active          Boolean               @default(true)
   users           User[]
+  userAccesses    UserSupplierAccess[]
   orderSuppliers  OrderSupplier[]
   phaseExecutions OrderPhaseExecution[]
   workflowPhases  WorkflowPhase[]       @relation("WorkflowPhaseResponsibleSupplier")
@@ -118,12 +120,37 @@ model User {
   password         String
   active           Boolean               @default(true)
   profiles         UserProfile[]
+  customerAccesses UserCustomerAccess[]
+  supplierAccesses UserSupplierAccess[]
   createdOrders    Order[]               @relation("OrderCreatedBy")
   createdPaymentPlans OrderPaymentPlan[] @relation("OrderPaymentPlanCreatedBy")
   phaseExecutions  OrderPhaseExecution[] @relation("PhaseExecutedBy")
   storedFiles      StoredFile[]
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
+}
+
+model UserCustomerAccess {
+  id         String    @id @default(cuid())
+  userId     String
+  customerId String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, customerId])
+}
+
+model UserSupplierAccess {
+  id         String    @id @default(cuid())
+  userId     String
+  supplierId String
+  role       String?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplier   Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, supplierId])
 }
 
 model UserProfile {
@@ -240,6 +267,7 @@ model Order {
   shippingMethodId  String
   requestedQuantity Int                   @default(1)
   shippingPrice     Decimal               @default(0) @db.Decimal(10, 2)
+  additionalChargeAmount Decimal          @default(0) @db.Decimal(10, 2)
   deliveryAddress   String?
   company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   customer          Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
@@ -250,6 +278,7 @@ model Order {
   shippingMethod    ShippingMethod        @relation(fields: [shippingMethodId], references: [id], onDelete: Restrict)
   title             String
   description       String?
+  additionalChargeReason String?
   requestedAt       DateTime
   expectedAt        DateTime?
   notes             String?

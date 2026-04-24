@@ -11,6 +11,7 @@ import { PaginationControls } from "@/components/pagination-controls";
 import { requireAnyProfile } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { parseActiveFilter, parsePage, parseSearch } from "@/lib/pagination";
+import { hasProfile } from "@/lib/user-access";
 import { getOrderIndexData } from "@/server/services/order-service";
 
 type PageProps = {
@@ -47,10 +48,18 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   };
 
   const { orders, pagination, filterOptions } = await getOrderIndexData(filters, user);
-  const canManage = user.profiles.some((item) => item.profile === UserProfileType.ADMIN);
-  const canCreate = user.profiles.some(
-    (item) => item.profile === UserProfileType.ADMIN || item.profile === UserProfileType.CLIENT,
-  );
+  type OrderListItem = (typeof orders)[number] & {
+    company: { tradeName: string };
+    customer: { name: string };
+    orderType: { name: string };
+    currentStatus: { name: string };
+    _count: { paymentPlans: number };
+  };
+  const isAdmin = hasProfile(user, UserProfileType.ADMIN);
+  const isClient = hasProfile(user, UserProfileType.CLIENT) && !isAdmin;
+  const isExecutor = hasProfile(user, UserProfileType.EXECUTOR) && !isAdmin;
+  const canManage = isAdmin;
+  const canCreate = isAdmin || isClient;
 
   return (
     <div className="page-stack">
@@ -68,35 +77,48 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
       {successMessage ? <FeedbackBanner message={successMessage} /> : null}
 
-      <FormCard title="Pesquisa" description="Use filtros operacionais e de relacionamento.">
+      <FormCard
+        title="Pesquisa"
+        description={
+          isAdmin
+            ? "Use filtros operacionais e de relacionamento."
+            : isClient
+              ? "Consulte apenas os pedidos dos seus clientes vinculados."
+              : "Consulte apenas os pedidos e tarefas ligados ao seu fornecedor."
+        }
+      >
         <form className="search-form">
           <div className="filters-grid three">
             <label className="field">
               <span>Busca</span>
               <input name="search" defaultValue={search} placeholder="Título ou descrição..." />
             </label>
-            <label className="field">
-              <span>Empresa</span>
-              <select name="companyId" defaultValue={filters.companyId}>
-                <option value="">Todas</option>
-                {filterOptions.companies.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.tradeName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Cliente</span>
-              <select name="customerId" defaultValue={filters.customerId}>
-                <option value="">Todos</option>
-                {filterOptions.customers.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {isAdmin ? (
+              <>
+                <label className="field">
+                  <span>Empresa</span>
+                  <select name="companyId" defaultValue={filters.companyId}>
+                    <option value="">Todas</option>
+                    {filterOptions.companies.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.tradeName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Cliente</span>
+                  <select name="customerId" defaultValue={filters.customerId}>
+                    <option value="">Todos</option>
+                    {filterOptions.customers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
             <label className="field">
               <span>Tipo</span>
               <select name="orderTypeId" defaultValue={filters.orderTypeId}>
@@ -119,28 +141,44 @@ export default async function OrdersPage({ searchParams }: PageProps) {
                 ))}
               </select>
             </label>
-            <label className="field">
-              <span>Fornecedor</span>
-              <select name="supplierId" defaultValue={filters.supplierId}>
-                <option value="">Todos</option>
-                {filterOptions.suppliers.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Responsável</span>
-              <select name="responsibleUserId" defaultValue={filters.responsibleUserId}>
-                <option value="">Todos</option>
-                {filterOptions.users.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {isAdmin ? (
+              <>
+                <label className="field">
+                  <span>Fornecedor</span>
+                  <select name="supplierId" defaultValue={filters.supplierId}>
+                    <option value="">Todos</option>
+                    {filterOptions.suppliers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Responsável</span>
+                  <select name="responsibleUserId" defaultValue={filters.responsibleUserId}>
+                    <option value="">Todos</option>
+                    {filterOptions.users.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : isExecutor ? (
+              <label className="field">
+                <span>Fornecedor</span>
+                <select name="supplierId" defaultValue={filters.supplierId}>
+                  <option value="">Todos</option>
+                  {filterOptions.suppliers.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="field">
               <span>Data inicial</span>
               <input type="date" name="requestedFrom" defaultValue={filters.requestedFrom} />
@@ -149,14 +187,16 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               <span>Data final</span>
               <input type="date" name="requestedTo" defaultValue={filters.requestedTo} />
             </label>
-            <label className="field">
-              <span>Situação</span>
-              <select name="active" defaultValue={active === undefined ? "" : String(active)}>
-                <option value="">Todos</option>
-                <option value="true">Ativos</option>
-                <option value="false">Inativos</option>
-              </select>
-            </label>
+            {isAdmin ? (
+              <label className="field">
+                <span>Situação</span>
+                <select name="active" defaultValue={active === undefined ? "" : String(active)}>
+                  <option value="">Todos</option>
+                  <option value="true">Ativos</option>
+                  <option value="false">Inativos</option>
+                </select>
+              </label>
+            ) : null}
           </div>
           <button className="primary-button" type="submit">
             Pesquisar
@@ -164,7 +204,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         </form>
       </FormCard>
 
-      <DataTable
+      <DataTable<OrderListItem>
         columns={[
           {
             key: "titulo",

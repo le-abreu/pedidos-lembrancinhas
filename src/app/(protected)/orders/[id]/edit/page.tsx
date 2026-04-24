@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { UserProfileType } from "@prisma/client";
 
 import { updateOrder } from "@/app/actions";
-import { OrderForm } from "@/components/admin-forms";
 import { FeedbackBanner } from "@/components/feedback-banner";
 import { FormCard } from "@/components/form-card";
+import { OrderFormExperience } from "@/components/order-form-experience";
 import { PageHeader } from "@/components/page-header";
 import { requireAnyProfile } from "@/lib/auth";
 import { getOrderFormData } from "@/server/services/order-service";
@@ -36,11 +36,13 @@ export default async function EditOrderPage({ params, searchParams }: PageProps)
         }
       />
       {successMessage ? <FeedbackBanner message={successMessage} /> : null}
-      <FormCard title="Edição" description="Altere vínculo, status, datas e composição do pedido.">
-        <OrderForm
+      <FormCard title="Edição por abas" description="Revise cadastro, destino, itens e ajustes de preço.">
+        <OrderFormExperience
           action={updateOrder}
           submitLabel="Salvar alterações"
           redirectPath={`/orders/${data.item.id}/edit`}
+          mode="edit"
+          isAdminView
           {...data}
         />
       </FormCard>

@@ -3,6 +3,11 @@ import { PhaseExecutionStatus, Prisma, UserProfileType } from "@prisma/client";
 import { pageSize } from "@/lib/constants";
 import { getPagination } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import {
+  getAccessibleCompanyIds,
+  getAccessibleCustomerIds,
+  getAccessibleSupplierIds,
+} from "@/lib/user-access";
 import { getAttachmentsByEntity } from "@/server/services/file-storage-service";
 
 type OrderFilters = {
@@ -24,10 +29,20 @@ export type ScopedUser = {
   companyId: string | null;
   customerId: string | null;
   supplierId: string | null;
+  customerAccesses?: Array<{
+    customerId: string;
+    customer?: {
+      companyId: string;
+    } | null;
+  }>;
+  supplierAccesses?: Array<{ supplierId: string }>;
   profiles: Array<{ profile: UserProfileType }>;
 };
 
-type OrderFormScope = Pick<ScopedUser, "id" | "companyId" | "customerId" | "profiles">;
+type OrderFormScope = Pick<
+  ScopedUser,
+  "id" | "companyId" | "customerId" | "customerAccesses" | "profiles"
+>;
 
 export function buildOrderScope(user: ScopedUser): Prisma.OrderWhereInput | undefined {
   const profiles = user.profiles.map((item) => item.profile);
@@ -37,26 +52,29 @@ export function buildOrderScope(user: ScopedUser): Prisma.OrderWhereInput | unde
   }
 
   if (profiles.includes(UserProfileType.CLIENT)) {
+    const customerIds = getAccessibleCustomerIds(user);
+    const companyIds = getAccessibleCompanyIds(user);
     return {
-      customerId: user.customerId ?? undefined,
-      companyId: user.companyId ?? undefined,
+      customerId: customerIds.length ? { in: customerIds } : user.customerId ?? undefined,
+      companyId: companyIds.length ? { in: companyIds } : user.companyId ?? undefined,
     };
   }
 
   if (profiles.includes(UserProfileType.EXECUTOR)) {
+    const supplierIds = getAccessibleSupplierIds(user);
     return {
       OR: [
         {
           suppliers: {
             some: {
-              supplierId: user.supplierId ?? undefined,
+              supplierId: supplierIds.length ? { in: supplierIds } : user.supplierId ?? undefined,
             },
           },
         },
         {
           phaseExecutions: {
             some: {
-              supplierId: user.supplierId ?? undefined,
+              supplierId: supplierIds.length ? { in: supplierIds } : user.supplierId ?? undefined,
             },
           },
         },
@@ -125,7 +143,7 @@ export async function getOrderIndexData(filters: OrderFilters, user: ScopedUser)
   ]);
 
   const pagination = getPagination(filters.page, total, pageSize);
-  const orders = await prisma.order.findMany({
+  const orders = await (prisma.order as any).findMany({
     where,
     orderBy: { createdAt: "desc" },
     skip: pagination.skip,
@@ -161,8 +179,14 @@ export async function getOrderIndexData(filters: OrderFilters, user: ScopedUser)
 
 export async function getOrderFormData(id?: string, user?: OrderFormScope) {
   const isClient = user?.profiles.some((item) => item.profile === UserProfileType.CLIENT);
-  const companyWhere = isClient ? { id: user?.companyId ?? "__no_access__" } : { active: true };
-  const customerWhere = isClient ? { id: user?.customerId ?? "__no_access__" } : { active: true };
+  const accessibleCompanyIds = getAccessibleCompanyIds(user);
+  const accessibleCustomerIds = getAccessibleCustomerIds(user);
+  const companyWhere = isClient
+    ? { id: { in: accessibleCompanyIds.length ? accessibleCompanyIds : [user?.companyId ?? "__no_access__"] } }
+    : { active: true };
+  const customerWhere = isClient
+    ? { id: { in: accessibleCustomerIds.length ? accessibleCustomerIds : [user?.customerId ?? "__no_access__"] } }
+    : { active: true };
   const userWhere = isClient ? { id: user?.id ?? "__no_access__" } : { active: true };
 
   const [companies, customers, orderTypes, statuses, shippingMethods, users, suppliers, item] =
@@ -199,6 +223,8 @@ export async function getOrderFormData(id?: string, user?: OrderFormScope) {
           }),
     ]);
 
+  const orderAttachments = item ? await getAttachmentsByEntity("ORDER", [item.id]) : new Map<string, Array<any>>();
+
   return {
     companies,
     customers,
@@ -207,7 +233,12 @@ export async function getOrderFormData(id?: string, user?: OrderFormScope) {
     shippingMethods: shippingMethods as any,
     users,
     suppliers,
-    item: item as any,
+    item: item
+      ? ({
+          ...item,
+          attachments: orderAttachments.get(item.id) ?? [],
+        } as any)
+      : (item as any),
   };
 }
 

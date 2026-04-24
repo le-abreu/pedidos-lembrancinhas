@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 import { UserProfileType } from "@prisma/client";
 
 import { updateUser } from "@/app/actions";
-import { UserForm } from "@/components/admin-forms";
 import { FeedbackBanner } from "@/components/feedback-banner";
 import { FormCard } from "@/components/form-card";
 import { PageHeader } from "@/components/page-header";
+import { UserForm } from "@/components/user-form";
 import { requireAnyProfile } from "@/lib/auth";
 import { getUserFormData } from "@/server/services/admin-service";
 

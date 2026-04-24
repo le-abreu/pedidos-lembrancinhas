@@ -3,6 +3,7 @@ import { Prisma, UserProfileType } from "@prisma/client";
 import { pageSize } from "@/lib/constants";
 import { getPagination } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
+import { getCustomerAccessMap, getSupplierAccessMap } from "@/server/services/user-access-service";
 
 type BaseListFilters = {
   page: number;
@@ -134,9 +135,24 @@ export async function getSuppliersList(filters: BaseListFilters) {
 }
 
 export async function getUsersList(filters: UserFilters) {
-  const where: Prisma.UserWhereInput = {
+  const where = {
     active: filters.active,
-    companyId: filters.companyId || undefined,
+    ...(filters.companyId
+      ? {
+          OR: [
+            { companyId: filters.companyId },
+            {
+              customerAccesses: {
+                some: {
+                  customer: {
+                    companyId: filters.companyId,
+                  },
+                },
+              },
+            },
+          ],
+        }
+      : {}),
     profiles: filters.profile
       ? {
           some: {
@@ -144,20 +160,21 @@ export async function getUsersList(filters: UserFilters) {
           },
         }
       : undefined,
-    OR: filters.search
+    AND: filters.search
       ? [
-          { name: searchContains(filters.search) },
-          { email: searchContains(filters.search) },
+          {
+            OR: [{ name: searchContains(filters.search) }, { email: searchContains(filters.search) }],
+          },
         ]
       : undefined,
-  };
+  } as any;
 
   const [total, companies] = await Promise.all([
     prisma.user.count({ where }),
     prisma.company.findMany({ orderBy: { tradeName: "asc" } }),
   ]);
   const pagination = getPagination(filters.page, total, pageSize);
-  const items = await prisma.user.findMany({
+  const items = await (prisma.user as any).findMany({
     where,
     orderBy: { name: "asc" },
     skip: pagination.skip,
@@ -176,7 +193,36 @@ export async function getUsersList(filters: UserFilters) {
     },
   });
 
-  return { items, pagination, companies };
+  const [customerAccessMap, supplierAccessMap] = await Promise.all([
+    getCustomerAccessMap(items.map((item: any) => item.id)),
+    getSupplierAccessMap(items.map((item: any) => item.id)),
+  ]);
+
+  const enrichedItems = items.map((item: any) => ({
+    ...item,
+    customerAccesses: (customerAccessMap.get(item.id) ?? []).map((access) => ({
+      customerId: access.customerId,
+      customer: {
+        id: access.customerId,
+        name: access.customerName,
+        companyId: access.companyId,
+        company: {
+          id: access.companyId,
+          tradeName: access.companyTradeName,
+        },
+      },
+    })),
+    supplierAccesses: (supplierAccessMap.get(item.id) ?? []).map((access) => ({
+      supplierId: access.supplierId,
+      role: access.role,
+      supplier: {
+        id: access.supplierId,
+        name: access.supplierName,
+      },
+    })),
+  }));
+
+  return { items: enrichedItems, pagination, companies };
 }
 
 export async function getStatusesList(filters: BaseListFilters) {
@@ -327,17 +373,61 @@ export async function getSupplierFormData(id?: string) {
 export async function getUserFormData(id?: string) {
   const [item, companies, customers, suppliers] = await Promise.all([
     id
-      ? prisma.user.findUnique({
+      ? (prisma.user as any).findUnique({
           where: { id },
-          include: { profiles: true },
+          include: {
+            profiles: true,
+          },
         })
       : Promise.resolve(null),
     prisma.company.findMany({ where: { active: true }, orderBy: { tradeName: "asc" } }),
-    prisma.customer.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({
+      where: { active: true },
+      orderBy: [{ company: { tradeName: "asc" } }, { name: "asc" }],
+      include: {
+        company: true,
+      },
+    }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
-  return { item, companies, customers, suppliers };
+  if (!item) {
+    return { item, companies, customers, suppliers };
+  }
+
+  const [customerAccessMap, supplierAccessMap] = await Promise.all([
+    getCustomerAccessMap([item.id]),
+    getSupplierAccessMap([item.id]),
+  ]);
+
+  return {
+    item: {
+      ...item,
+      customerAccesses: (customerAccessMap.get(item.id) ?? []).map((access) => ({
+        customerId: access.customerId,
+        customer: {
+          id: access.customerId,
+          name: access.customerName,
+          companyId: access.companyId,
+          company: {
+            id: access.companyId,
+            tradeName: access.companyTradeName,
+          },
+        },
+      })),
+      supplierAccesses: (supplierAccessMap.get(item.id) ?? []).map((access) => ({
+        supplierId: access.supplierId,
+        role: access.role,
+        supplier: {
+          id: access.supplierId,
+          name: access.supplierName,
+        },
+      })),
+    },
+    companies,
+    customers,
+    suppliers,
+  };
 }
 
 export async function getStatusFormData(id?: string) {

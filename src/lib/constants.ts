@@ -56,7 +56,7 @@ export const navigationItems = [
   {
     href: "/financial",
     label: "Financeiro",
-    allowedProfiles: [UserProfileType.ADMIN, UserProfileType.CLIENT, UserProfileType.EXECUTOR],
+    allowedProfiles: [UserProfileType.ADMIN],
   },
 ];
 

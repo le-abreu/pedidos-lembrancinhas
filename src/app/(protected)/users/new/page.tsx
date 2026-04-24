@@ -2,9 +2,9 @@ import Link from "next/link";
 import { UserProfileType } from "@prisma/client";
 
 import { createUser } from "@/app/actions";
-import { UserForm } from "@/components/admin-forms";
 import { FormCard } from "@/components/form-card";
 import { PageHeader } from "@/components/page-header";
+import { UserForm } from "@/components/user-form";
 import { requireAnyProfile } from "@/lib/auth";
 import { getUserFormData } from "@/server/services/admin-service";
 
@@ -36,4 +36,3 @@ export default async function NewUserPage() {
     </div>
   );
 }
-

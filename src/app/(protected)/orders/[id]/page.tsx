@@ -10,7 +10,6 @@ import {
   markOrderPaymentInstallmentPaid,
   reopenOrderPaymentInstallment,
   updateOrderPhaseInteraction,
-  uploadOrderAttachment,
 } from "@/app/actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FeedbackBanner } from "@/components/feedback-banner";
@@ -22,6 +21,7 @@ import { orderTabs } from "@/lib/constants";
 import { requireAnyProfile } from "@/lib/auth";
 import { formatCurrency, formatDate, formatWeight } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import { canAccessSupplier } from "@/lib/user-access";
 import {
   getOrderById,
   getWorkflowExecutionSummary,
@@ -66,6 +66,8 @@ export default async function OrderDetailPage({
     active: boolean;
     requestedQuantity: number;
     shippingPrice: { toString(): string } | string | number | null;
+    additionalChargeAmount: { toString(): string } | string | number | null;
+    additionalChargeReason: string | null;
     deliveryAddress: string | null;
     description: string | null;
     notes: string | null;
@@ -255,12 +257,14 @@ export default async function OrderDetailPage({
   }
 
   const isAdmin = user.profiles.some(
-    (item) => item.profile === UserProfileType.ADMIN
+    (item: { profile: UserProfileType }) => item.profile === UserProfileType.ADMIN
   );
   const isExecutor = user.profiles.some(
-    (item) => item.profile === UserProfileType.EXECUTOR
+    (item: { profile: UserProfileType }) => item.profile === UserProfileType.EXECUTOR
   );
-  const canManage = isAdmin || isExecutor;
+  const canManage = isAdmin;
+  const canViewFinancial = isAdmin;
+  const canViewInvoice = isAdmin;
   const availableUsers = isAdmin
     ? users
     : users.filter((item) => item.id === user.id);
@@ -272,11 +276,12 @@ export default async function OrderDetailPage({
     0
   );
   const shippingPrice = Number(typedOrder.shippingPrice ?? 0);
+  const additionalChargeAmount = Number(typedOrder.additionalChargeAmount ?? 0);
   const orderWeightTotal = typedOrder.items.reduce(
     (sum: number, item) => sum + item.quantity * Number(item.unitWeight ?? 0),
     0
   );
-  const orderFinalTotal = orderItemsTotal + shippingPrice;
+  const orderFinalTotal = orderItemsTotal + shippingPrice + additionalChargeAmount;
   const orderPhotoFiles = typedOrder.attachments
     .map((attachment) => attachment.storedFile)
     .filter((file) => isImageFile(file));
@@ -298,6 +303,19 @@ export default async function OrderDetailPage({
   const totalOpen = totalPlanned - totalReceived;
   const today = new Date();
 
+  const visibleTabs = orderTabs.filter((tab) => {
+    if (tab.key === "financial" || tab.key === "invoice") {
+      return isAdmin;
+    }
+
+    if (tab.key === "interaction") {
+      return isAdmin || isExecutor;
+    }
+
+    return true;
+  });
+  const safeCurrentTab = visibleTabs.some((tab) => tab.key === currentTab) ? currentTab : "overview";
+
   const paymentMethodLabels = {
     PIX: "Pix",
     TRANSFER: "Transferência",
@@ -317,15 +335,11 @@ export default async function OrderDetailPage({
     }
 
     if (execution.phase.requiresSupplier) {
-      return Boolean(
-        user.supplierId &&
-          execution.phase.responsibleSupplierId &&
-          user.supplierId === execution.phase.responsibleSupplierId
-      );
+      return canAccessSupplier(user, execution.phase.responsibleSupplierId);
     }
 
     if (execution.supplierId) {
-      return user.supplierId === execution.supplierId;
+      return canAccessSupplier(user, execution.supplierId);
     }
 
     return true;
@@ -342,7 +356,7 @@ export default async function OrderDetailPage({
               Voltar
             </Link>
             {user.profiles.some(
-              (item) => item.profile === UserProfileType.ADMIN
+              (item: { profile: UserProfileType }) => item.profile === UserProfileType.ADMIN
             ) ? (
               <Link
                 className="primary-button"
@@ -359,11 +373,11 @@ export default async function OrderDetailPage({
 
       <PageTabs
         pathname={`/orders/${typedOrder.id}`}
-        currentTab={currentTab}
-        tabs={[...orderTabs]}
+        currentTab={safeCurrentTab}
+        tabs={[...visibleTabs]}
       />
 
-      {currentTab === "overview" ? (
+      {safeCurrentTab === "overview" ? (
         <>
           <section className="details-grid">
             <div className="detail-block">
@@ -443,9 +457,19 @@ export default async function OrderDetailPage({
                 <span>{formatCurrency(shippingPrice)}</span>
               </div>
               <div className="detail-block">
+                <strong>Acréscimos</strong>
+                <span>{formatCurrency(additionalChargeAmount)}</span>
+              </div>
+              <div className="detail-block">
                 <strong>Total final do pedido</strong>
                 <span>{formatCurrency(orderFinalTotal)}</span>
               </div>
+              {typedOrder.additionalChargeReason ? (
+                <div className="detail-block">
+                  <strong>Motivo do acréscimo</strong>
+                  <span>{typedOrder.additionalChargeReason}</span>
+                </div>
+              ) : null}
               {typedOrder.items.map((item) => {
                 const productFile = item.product.fileStoredFile;
                 const hasProductImage = productFile && isImageFile(productFile);
@@ -519,30 +543,6 @@ export default async function OrderDetailPage({
               <h3>Fotos do pedido</h3>
               <span className="badge">{orderPhotoFiles.length}</span>
             </div>
-            {canManage ||
-            user.profiles.some(
-              (item) => item.profile === UserProfileType.CLIENT
-            ) ? (
-              <form
-                action={uploadOrderAttachment}
-                className="form-grid"
-                encType="multipart/form-data"
-              >
-                <input type="hidden" name="orderId" value={typedOrder.id} />
-                <input
-                  type="hidden"
-                  name="redirectPath"
-                  value={`/orders/${typedOrder.id}`}
-                />
-                <label className="field">
-                  <span>Arquivo</span>
-                  <input type="file" name="file" accept="image/*" required />
-                </label>
-                <button className="primary-button" type="submit">
-                  Enviar foto
-                </button>
-              </form>
-            ) : null}
             {renderImageGallery(
               orderPhotoFiles,
               "Sem fotos vinculadas ao pedido."
@@ -551,7 +551,7 @@ export default async function OrderDetailPage({
         </>
       ) : null}
 
-      {currentTab === "financial" ? (
+      {safeCurrentTab === "financial" && canViewFinancial ? (
         <div className="page-stack">
           <section className="details-grid">
             <div className="detail-block">
@@ -868,7 +868,7 @@ export default async function OrderDetailPage({
         </div>
       ) : null}
 
-      {currentTab === "workflow" ? (
+      {safeCurrentTab === "workflow" ? (
         <section className="card page-stack">
           <div className="section-heading">
             <h3>Workflow do pedido</h3>
@@ -930,7 +930,7 @@ export default async function OrderDetailPage({
         </section>
       ) : null}
 
-      {currentTab === "interaction" ? (
+      {safeCurrentTab === "interaction" ? (
         <section className="page-stack">
           <section className="card page-stack">
             <div className="section-heading">
@@ -1079,14 +1079,6 @@ export default async function OrderDetailPage({
                                 </label>
                               ) : null}
                               <label className="field">
-                                <span>Arquivo</span>
-                                <input
-                                  type="file"
-                                  name="file"
-                                  accept="image/*"
-                                />
-                              </label>
-                              <label className="field">
                                 <span>Comentário</span>
                                 <textarea
                                   name="comment"
@@ -1178,14 +1170,6 @@ export default async function OrderDetailPage({
                                 </label>
                               ) : null}
                               <label className="field">
-                                <span>Arquivo</span>
-                                <input
-                                  type="file"
-                                  name="file"
-                                  accept="image/*"
-                                />
-                              </label>
-                              <label className="field">
                                 <span>Comentário</span>
                                 <textarea
                                   name="comment"
@@ -1209,7 +1193,7 @@ export default async function OrderDetailPage({
         </section>
       ) : null}
 
-      {currentTab === "invoice" ? (
+      {safeCurrentTab === "invoice" && canViewInvoice ? (
         <div className="page-stack">
           <section className="card page-stack">
             <div className="section-heading">

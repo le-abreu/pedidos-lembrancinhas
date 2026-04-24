@@ -19,7 +19,7 @@ async function canAccessStoredFile(storedFileId: string) {
     return true;
   }
 
-  if (user.profiles.some((item) => item.profile === "ADMIN")) {
+  if (user.profiles.some((item: { profile: string }) => item.profile === "ADMIN")) {
     const [attachment, orderType, product] = await Promise.all([
       (prisma as any).fileAttachment.findFirst({
         where: { storedFileId },

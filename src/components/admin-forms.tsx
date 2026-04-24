@@ -643,6 +643,7 @@ export function OrderForm({
   users,
   orderTypes,
   suppliers,
+  isClientView,
 }: BaseFormProps & {
   item?: {
     id: string;
@@ -680,6 +681,7 @@ export function OrderForm({
     }>;
   }>;
   suppliers: Option[];
+  isClientView?: boolean;
 }) {
   const selectedProducts = new Set(item?.items?.map((orderItem) => orderItem.productId) ?? []);
   const selectedSuppliers = new Set(item?.suppliers?.map((supplier) => supplier.supplierId) ?? []);
@@ -707,22 +709,25 @@ export function OrderForm({
     <form action={action} className="order-form-layout">
       <input type="hidden" name="redirectPath" value={redirectPath} />
       {item ? <input type="hidden" name="id" value={item.id} /> : null}
+      {isClientView ? <input type="hidden" name="createdById" value={item?.createdById ?? users[0]?.id ?? ""} /> : null}
       <div className="card page-stack order-form-section">
         <div className="section-heading">
           <h3>Dados principais</h3>
         </div>
         <div className="form-grid">
-          <label className="field">
-            <span>Empresa</span>
-            <select name="companyId" required defaultValue={item?.companyId ?? ""}>
-              <option value="">Selecione</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.tradeName}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isClientView ? null : (
+            <label className="field">
+              <span>Empresa</span>
+              <select name="companyId" required defaultValue={item?.companyId ?? ""}>
+                <option value="">Selecione</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.tradeName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="field">
             <span>Cliente</span>
             <select name="customerId" required defaultValue={item?.customerId ?? ""}>
@@ -745,28 +750,32 @@ export function OrderForm({
               ))}
             </select>
           </label>
-          <label className="field">
-            <span>Status atual</span>
-            <select name="currentStatusId" required defaultValue={item?.currentStatusId ?? ""}>
-              <option value="">Selecione</option>
-              {statuses.map((status) => (
-                <option key={status.id} value={status.id}>
-                  {status.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Responsável pelo cadastro</span>
-            <select name="createdById" required defaultValue={item?.createdById ?? ""}>
-              <option value="">Selecione</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isClientView ? null : (
+            <>
+              <label className="field">
+                <span>Status atual</span>
+                <select name="currentStatusId" required defaultValue={item?.currentStatusId ?? ""}>
+                  <option value="">Selecione</option>
+                  {statuses.map((status) => (
+                    <option key={status.id} value={status.id}>
+                      {status.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Responsável pelo cadastro</span>
+                <select name="createdById" required defaultValue={item?.createdById ?? ""}>
+                  <option value="">Selecione</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
           <label className="field">
             <span>Título</span>
             <input name="title" required defaultValue={item?.title ?? ""} />
@@ -906,22 +915,24 @@ export function OrderForm({
         </div>
       </div>
 
-      <div className="card page-stack order-form-section">
-        <p className="eyebrow">Fornecedores vinculados</p>
-        <div className="order-products-list">
-          {suppliers.map((supplier) => (
-            <label key={supplier.id} className="field-checkbox">
-              <input
-                type="checkbox"
-                name="supplierId"
-                value={supplier.id}
-                defaultChecked={selectedSuppliers.has(supplier.id)}
-              />
-              <span>{supplier.name}</span>
-            </label>
-          ))}
+      {isClientView ? null : (
+        <div className="card page-stack order-form-section">
+          <p className="eyebrow">Fornecedores vinculados</p>
+          <div className="order-products-list">
+            {suppliers.map((supplier) => (
+              <label key={supplier.id} className="field-checkbox">
+                <input
+                  type="checkbox"
+                  name="supplierId"
+                  value={supplier.id}
+                  defaultChecked={selectedSuppliers.has(supplier.id)}
+                />
+                <span>{supplier.name}</span>
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="action-toolbar">
         <div className="toolbar-group">

@@ -517,6 +517,50 @@ p {
   gap: 20px;
 }
 
+.order-journey-form {
+  display: grid;
+  gap: 20px;
+}
+
+.order-stepper,
+.order-edit-tabs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 251, 244, 0.9);
+}
+
+.order-panel-button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.order-panel-button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.order-product-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(116, 94, 67, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 251, 244, 0.72);
+}
+
+.order-panel-hidden {
+  display: none;
+}
+
 .order-form-section {
   min-width: 0;
 }

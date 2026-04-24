@@ -1,9 +1,14 @@
-import { OrderPaymentInstallmentStatus, Prisma, UserProfileType } from "@prisma/client";
+import { Prisma, UserProfileType } from "@prisma/client";
 
 import { pageSize } from "@/lib/constants";
 import { getPagination } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { buildOrderScope, type ScopedUser } from "@/server/services/order-service";
+
+const ORDER_PAYMENT_INSTALLMENT_STATUS = {
+  OPEN: "OPEN",
+  PAID: "PAID",
+} as const;
 
 type FinancialFilters = {
   page: number;
@@ -59,7 +64,7 @@ export async function getFinancialIndexData(filters: FinancialFilters, user: Sco
       : undefined,
   };
 
-  const where: Prisma.OrderPaymentPlanWhereInput = {
+  const where = {
     order: orderWhere,
     method: filters.method ? { equals: filters.method as any } : undefined,
     installments: startAt || endAt
@@ -72,10 +77,10 @@ export async function getFinancialIndexData(filters: FinancialFilters, user: Sco
           },
         }
       : undefined,
-  };
+  } as any;
 
   const [total, companies, customers, statuses, ordersWithoutPaymentCount, ordersWithoutPayment] = await Promise.all([
-    prisma.orderPaymentPlan.count({ where }),
+    (prisma as any).orderPaymentPlan.count({ where }),
     prisma.company.findMany({ orderBy: { tradeName: "asc" } }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.orderStatus.findMany({ orderBy: { name: "asc" } }),
@@ -85,7 +90,7 @@ export async function getFinancialIndexData(filters: FinancialFilters, user: Sco
         paymentPlans: {
           none: {},
         },
-      },
+      } as any,
     }),
     prisma.order.findMany({
       where: {
@@ -93,7 +98,7 @@ export async function getFinancialIndexData(filters: FinancialFilters, user: Sco
         paymentPlans: {
           none: {},
         },
-      },
+      } as any,
       orderBy: { createdAt: "desc" },
       take: 10,
       include: {
@@ -105,7 +110,7 @@ export async function getFinancialIndexData(filters: FinancialFilters, user: Sco
   ]);
 
   const pagination = getPagination(filters.page, total, pageSize);
-  const paginatedPlans = await prisma.orderPaymentPlan.findMany({
+  const paginatedPlans = await (prisma as any).orderPaymentPlan.findMany({
     where,
     orderBy: { createdAt: "desc" },
     include: {
@@ -125,10 +130,11 @@ export async function getFinancialIndexData(filters: FinancialFilters, user: Sco
   });
 
   const summary = paginatedPlans.reduce(
-    (acc, plan) => {
+    (acc: { planned: number; received: number; open: number }, plan: any) => {
       const totalAmount = Number(plan.totalAmount);
       const received = plan.installments.reduce(
-        (sum, installment) => sum + (installment.status === "PAID" ? Number(installment.amount) : 0),
+        (sum: number, installment: any) =>
+          sum + (installment.status === ORDER_PAYMENT_INSTALLMENT_STATUS.PAID ? Number(installment.amount) : 0),
         0,
       );
 
@@ -183,7 +189,7 @@ export async function getDashboardFinancialSnapshot(user: ScopedUser, filters?: 
       },
       _count: { _all: true },
     }),
-    prisma.orderPaymentInstallment.findMany({
+    (prisma as any).orderPaymentInstallment.findMany({
       where: {
         dueAt: installmentDueAtFilter,
         plan: {
@@ -191,18 +197,18 @@ export async function getDashboardFinancialSnapshot(user: ScopedUser, filters?: 
         },
       },
     }),
-    prisma.orderPaymentInstallment.count({
+    (prisma as any).orderPaymentInstallment.count({
       where: {
-        status: OrderPaymentInstallmentStatus.OPEN,
+        status: ORDER_PAYMENT_INSTALLMENT_STATUS.OPEN,
         dueAt: installmentDueAtFilter,
         plan: {
           order: orderScope,
         },
       },
     }),
-    prisma.orderPaymentInstallment.count({
+    (prisma as any).orderPaymentInstallment.count({
       where: {
-        status: OrderPaymentInstallmentStatus.OPEN,
+        status: ORDER_PAYMENT_INSTALLMENT_STATUS.OPEN,
         dueAt: {
           lt: today,
           gte: startAt,
@@ -220,11 +226,11 @@ export async function getDashboardFinancialSnapshot(user: ScopedUser, filters?: 
         paymentPlans: {
           none: {},
         },
-      },
+      } as any,
     }),
-    prisma.orderPaymentInstallment.findMany({
+    (prisma as any).orderPaymentInstallment.findMany({
       where: {
-        status: OrderPaymentInstallmentStatus.OPEN,
+        status: ORDER_PAYMENT_INSTALLMENT_STATUS.OPEN,
         dueAt: {
           lt: today,
           gte: startAt,
@@ -262,24 +268,24 @@ export async function getDashboardFinancialSnapshot(user: ScopedUser, filters?: 
 
   const statusMap = new Map(statuses.map((status) => [status.id, status]));
   const orderStatusBreakdown = statusSummary
-    .map((item) => ({
+    .map((item: any) => ({
       id: item.currentStatusId,
       name: statusMap.get(item.currentStatusId)?.name ?? "Sem status",
       color: statusMap.get(item.currentStatusId)?.color ?? "#b4653a",
       count: item._count._all,
     }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a: any, b: any) => b.count - a.count);
 
   const financialSummary = scopedInstallments.reduce(
-    (acc, installment) => {
+    (acc: { planned: number; received: number; open: number }, installment: any) => {
       const amount = Number(installment.amount);
       acc.planned += amount;
 
-      if (installment.status === OrderPaymentInstallmentStatus.PAID) {
+      if (installment.status === ORDER_PAYMENT_INSTALLMENT_STATUS.PAID) {
         acc.received += amount;
       }
 
-      if (installment.status === OrderPaymentInstallmentStatus.OPEN) {
+      if (installment.status === ORDER_PAYMENT_INSTALLMENT_STATUS.OPEN) {
         acc.open += amount;
       }
 
