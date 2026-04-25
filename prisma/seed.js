@@ -9,25 +9,6 @@ const {
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.fileAttachment?.deleteMany?.();
-  await prisma.storedFile?.deleteMany?.();
-  await prisma.invoice.deleteMany();
-  await prisma.orderPhaseExecution.deleteMany();
-  await prisma.orderSupplier.deleteMany();
-  await prisma.orderItem.deleteMany();
-  await prisma.order.deleteMany();
-  await prisma.workflowPhase.deleteMany();
-  await prisma.workflow.deleteMany();
-  await prisma.orderTypeProduct.deleteMany();
-  await prisma.orderType.deleteMany();
-  await prisma.orderStatus.deleteMany();
-  await prisma.shippingMethod.deleteMany();
-  await prisma.userProfile.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.supplier.deleteMany();
-  await prisma.customer.deleteMany();
-  await prisma.company.deleteMany();
-
   const company = await prisma.company.create({
     data: {
       legalName: "Lembrancinhas Exemplo LTDA",
@@ -438,6 +419,8 @@ async function main() {
       notes: "NF parcial para sinal do pedido.",
     },
   });
+
+  console.log("Seed inicial concluido para banco novo.");
 }
 
 main()

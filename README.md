@@ -115,23 +115,31 @@ yarn
 yarn db:generate
 ```
 
-5. Aplique migrations:
+5. Faça o bootstrap do banco zerado:
 
 ```bash
-yarn db:migrate
+yarn db:setup
 ```
 
-6. Rode o seed:
+Isso executa, em ordem:
 
-```bash
-yarn db:seed
-```
+- `prisma generate`
+- `prisma migrate deploy`
+- `prisma db seed`
 
-7. Suba a aplicação:
+6. Suba a aplicação:
 
 ```bash
 yarn dev
 ```
+
+### Scripts Prisma
+
+- `yarn db:generate`: gera o Prisma Client
+- `yarn db:migrate`: aplica migrations existentes em um banco já criado
+- `yarn db:seed`: popula somente a carga inicial
+- `yarn db:setup`: fluxo completo para banco vazio, marco zero
+- `yarn db:reset`: apaga o banco, recria via migrations e roda o seed novamente
 
 ## Execução local com Docker Compose
 
@@ -176,9 +184,9 @@ yarn docker:down
 O container da aplicação usa [docker/app/entrypoint.sh](/home/leandroabreuferreira/Develop/CODEX/workspace_pedido_lembrancinha/docker/app/entrypoint.sh).
 
 - `RUN_MIGRATIONS=true`: executa `prisma migrate deploy` ao subir
-- `RUN_SEED=true`: executa `prisma db seed` ao subir
+- `RUN_SEED=true`: executa `prisma db seed` ao subir em cenário de banco recém-recriado
 
-Para um primeiro bootstrap local, você pode temporariamente definir em `docker/compose/.env`:
+Para um primeiro bootstrap local com base zerada, você pode temporariamente definir em `docker/compose/.env`:
 
 ```env
 RUN_SEED=true
