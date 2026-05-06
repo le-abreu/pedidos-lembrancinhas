@@ -12,6 +12,8 @@ type Option = {
 type OrderTypeProduct = {
   id: string;
   name: string;
+  description?: string | null;
+  required: boolean;
   defaultQuantity: number | null;
   defaultUnitPrice?: { toString(): string } | null;
   defaultUnitWeight?: { toString(): string } | null;
@@ -136,6 +138,11 @@ export function OrderFormExperience({
   const [requestedQuantity, setRequestedQuantity] = useState(
     initialRequestedQuantity
   );
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
+    item?.items?.length
+      ? item.items.map((orderItem) => orderItem.productId)
+      : []
+  );
   const [productExtraQuantities, setProductExtraQuantities] = useState<
     Record<string, string>
   >(() => {
@@ -223,6 +230,25 @@ export function OrderFormExperience({
       return;
     }
 
+    const nextSelectedProducts =
+      item?.items?.length && selectedOrderType.id === item.orderTypeId
+        ? [
+            ...selectedOrderType.products
+              .filter((product) => product.required)
+              .map((product) => product.id),
+            ...item.items
+              .map((orderItem) => orderItem.productId)
+              .filter((productId) =>
+                selectedOrderType.products.some(
+                  (product) => product.id === productId
+                )
+              ),
+          ]
+        : selectedOrderType.products
+            .filter((product) => product.required)
+            .map((product) => product.id);
+
+    setSelectedProductIds([...new Set(nextSelectedProducts)]);
     setProductExtraQuantities((current) => {
       const next = { ...current };
 
@@ -262,7 +288,12 @@ export function OrderFormExperience({
     );
   }
 
-  const selectedProducts = selectedOrderType ? selectedOrderType.products : [];
+  const selectedProducts = selectedOrderType
+    ? selectedOrderType.products.filter(
+        (product) =>
+          product.required || selectedProductIds.includes(product.id)
+      )
+    : [];
 
   const itemsTotal = selectedProducts.reduce((sum, product) => {
     return (
@@ -287,6 +318,14 @@ export function OrderFormExperience({
       ...current,
       [productId]: value,
     }));
+  }
+
+  function toggleProduct(productId: string, checked: boolean) {
+    setSelectedProductIds((current) =>
+      checked
+        ? [...new Set([...current, productId])]
+        : current.filter((itemId) => itemId !== productId)
+    );
   }
 
   function toggleSupplier(supplierId: string, checked: boolean) {
@@ -319,70 +358,91 @@ export function OrderFormExperience({
   function renderProductCard(product: OrderTypeProduct) {
     const productImage = product.fileStoredFile;
     const suggestedQuantity = getBaseProductQuantity(product);
+    const extraQuantity = getExtraProductQuantity(product.id);
     const totalQuantity = getTotalProductQuantity(product);
+    const isSelected = product.required || selectedProductIds.includes(product.id);
 
     return (
       <article key={product.id} className="order-product-card">
-        <label className="field-checkbox">
-          <input
-            type="checkbox"
-            checked
-            disabled
-            readOnly
-          />
-          <span>{product.name}</span>
-        </label>
-        {productImage ? (
-          <a
-            className="inline-file-link"
-            href={`/api/files/${productImage.id}`}
-            target="_blank"
-          >
-            Referência: {productImage.originalName}
-          </a>
-        ) : (
-          <span className="muted">
-            Sem foto de referência para este produto.
-          </span>
-        )}
-        <div className="details-grid">
-          <div className="detail-block">
-            <strong>Sugestão</strong>
-            <span>{suggestedQuantity} unidade(s)</span>
+        <div className="order-product-header">
+          <div className="order-product-title">
+            <strong>{product.name}</strong>
+            {product.description ? (
+              <span className="muted">{product.description}</span>
+            ) : null}
           </div>
-          <div className="detail-block">
-            <strong>Peso base</strong>
-            <span>
-              {formatWeight(product.defaultUnitWeight?.toString() ?? null)}
-            </span>
+          {product.required ? (
+            <span className="badge">Obrigatório</span>
+          ) : (
+            <label className="field-checkbox order-product-toggle">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(event) =>
+                  toggleProduct(product.id, event.target.checked)
+                }
+              />
+              <span>Incluir no pedido</span>
+            </label>
+          )}
+        </div>
+
+        {isSelected ? (
+          <>
+            <input type="hidden" name="productId" value={product.id} />
+            <input
+              type="hidden"
+              name={`productQuantity:${product.id}`}
+              value={String(totalQuantity)}
+            />
+          </>
+        ) : null}
+
+        <div className="order-product-meta">
+          <div className="details-grid">
+            <div className="detail-block">
+              <strong>Quantidade base</strong>
+              <span>{suggestedQuantity}</span>
+            </div>
+            <div className="detail-block">
+              <strong>Quantidade extra</strong>
+              <span>{extraQuantity}</span>
+            </div>
+            <div className="detail-block">
+              <strong>Quantidade total</strong>
+              <span>{totalQuantity}</span>
+            </div>
+            <div className="detail-block">
+              <strong>Peso unitário</strong>
+              <span>
+                {formatWeight(product.defaultUnitWeight?.toString() ?? null)}
+              </span>
+            </div>
+          </div>
+
+          <div className="order-reference-panel">
+            <strong>Referência</strong>
+            {productImage ? (
+              <a
+                className="inline-file-link"
+                href={`/api/files/${productImage.id}`}
+                target="_blank"
+              >
+                {productImage.originalName}
+              </a>
+            ) : (
+              <span className="muted">Sem foto de referência cadastrada.</span>
+            )}
           </div>
         </div>
-        <input type="hidden" name="productId" value={product.id} />
-        <input
-          type="hidden"
-          name={`productQuantity:${product.id}`}
-          value={String(totalQuantity)}
-        />
-        <div className="details-grid">
-          <div className="detail-block">
-            <strong>Quantidade base</strong>
-            <span>{suggestedQuantity}</span>
-          </div>
-          <div className="detail-block">
-            <strong>Quantidade extra</strong>
-            <span>{getExtraProductQuantity(product.id)}</span>
-          </div>
-          <div className="detail-block">
-            <strong>Quantidade total</strong>
-            <span>{totalQuantity}</span>
-          </div>
-        </div>
+
         <label className="field">
           <span>Quantidade extra do item</span>
           <input
             type="number"
             min="0"
             value={productExtraQuantities[product.id] ?? "0"}
+            disabled={!isSelected}
             onChange={(event) =>
               setProductExtraQuantity(product.id, event.target.value)
             }
@@ -410,12 +470,12 @@ export function OrderFormExperience({
             </span>
           </div>
           <div className="detail-block">
-            <strong>Total dos itens</strong>
-            <span>{formatCurrency(itemsTotal)}</span>
+            <strong>Peso Estimado do Pedido</strong>
+            <span>{formatWeight(itemsWeight)}</span>
           </div>
           <div className="detail-block">
-            <strong>Peso Estimado</strong>
-            <span>{formatCurrency(itemsWeight)}</span>
+            <strong>Total dos itens</strong>
+            <span>{formatCurrency(itemsTotal)}</span>
           </div>
           <div className="detail-block">
             <strong>Frete</strong>
@@ -648,6 +708,28 @@ export function OrderFormExperience({
           Os itens do modelo já aparecem preenchidos. Você pode acrescentar
           quantidade extra quando precisar.
         </span>
+        <div className="order-items-overview">
+          <div className="detail-block">
+            <strong>Modelo</strong>
+            <span>
+              {selectedOrderType?.name ?? "Selecione um tipo de pedido."}
+            </span>
+          </div>
+          <div className="detail-block">
+            <strong>Produtos incluídos</strong>
+            <span>
+              {selectedProducts.length} de {selectedOrderType?.products.length ?? 0}
+            </span>
+          </div>
+          <div className="detail-block">
+            <strong>Peso estimado</strong>
+            <span>{formatWeight(itemsWeight)}</span>
+          </div>
+          <div className="detail-block">
+            <strong>Total dos itens</strong>
+            <span>{formatCurrency(itemsTotal)}</span>
+          </div>
+        </div>
         <div className="order-products-list">
           {selectedOrderType ? (
             selectedOrderType.products.map(renderProductCard)
@@ -656,24 +738,30 @@ export function OrderFormExperience({
           )}
         </div>
         {orderImageAttachments.length ? (
-          <div className="image-gallery">
-            {orderImageAttachments.map((attachment) => (
-              <a
-                key={attachment.id}
-                className="image-card"
-                href={`/api/files/${attachment.storedFile.id}`}
-                target="_blank"
-              >
-                <img
-                  src={`/api/files/${attachment.storedFile.id}`}
-                  alt={attachment.storedFile.originalName}
-                  className="image-card-preview"
-                />
-                <span className="image-card-caption">
-                  {attachment.storedFile.originalName}
-                </span>
-              </a>
-            ))}
+          <div className="order-reference-section">
+            <div className="section-heading">
+              <h3>Referências do pedido</h3>
+              <span className="badge">{orderImageAttachments.length}</span>
+            </div>
+            <div className="image-gallery">
+              {orderImageAttachments.map((attachment) => (
+                <a
+                  key={attachment.id}
+                  className="image-card"
+                  href={`/api/files/${attachment.storedFile.id}`}
+                  target="_blank"
+                >
+                  <img
+                    src={`/api/files/${attachment.storedFile.id}`}
+                    alt={attachment.storedFile.originalName}
+                    className="image-card-preview"
+                  />
+                  <span className="image-card-caption">
+                    {attachment.storedFile.originalName}
+                  </span>
+                </a>
+              ))}
+            </div>
           </div>
         ) : null}
         {mode === "create" ? (

@@ -557,6 +557,40 @@ p {
   background: rgba(255, 251, 244, 0.72);
 }
 
+.order-product-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-product-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.order-product-toggle {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.order-product-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.35fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.order-reference-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff9f0;
+}
+
 .order-panel-hidden {
   display: none;
 }
@@ -603,6 +637,18 @@ p {
 .order-products-list {
   display: grid;
   gap: 10px;
+}
+
+.order-items-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.order-reference-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
 }
 
 .disabled-link {
@@ -1230,6 +1276,14 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
+  .order-product-header {
+    flex-direction: column;
+  }
+
+  .order-product-toggle {
+    white-space: normal;
+  }
+
   .financial-dashboard-primary,
   .financial-dashboard-secondary {
     grid-template-columns: 1fr;
@@ -1249,6 +1303,8 @@ tbody tr:last-child td {
   .filters-grid,
   .filters-grid.three,
   .login-highlights,
+  .order-items-overview,
+  .order-product-meta,
   .order-form-split,
   .order-type-form {
     grid-template-columns: 1fr;
