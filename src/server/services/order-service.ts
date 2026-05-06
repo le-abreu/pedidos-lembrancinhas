@@ -53,10 +53,14 @@ export function buildOrderScope(user: ScopedUser): Prisma.OrderWhereInput | unde
 
   if (profiles.includes(UserProfileType.CLIENT)) {
     const customerIds = getAccessibleCustomerIds(user);
-    const companyIds = getAccessibleCompanyIds(user);
+    if (customerIds.length) {
+      return {
+        customerId: { in: customerIds },
+      };
+    }
+
     return {
-      customerId: customerIds.length ? { in: customerIds } : user.customerId ?? undefined,
-      companyId: companyIds.length ? { in: companyIds } : user.companyId ?? undefined,
+      id: "__no_access__",
     };
   }
 
@@ -90,8 +94,7 @@ export function buildOrderScope(user: ScopedUser): Prisma.OrderWhereInput | unde
 export async function getOrderIndexData(filters: OrderFilters, user: ScopedUser) {
   const scope = buildOrderScope(user);
 
-  const where: Prisma.OrderWhereInput = {
-    ...scope,
+  const filterWhere: Prisma.OrderWhereInput = {
     active: filters.active,
     companyId: filters.companyId || undefined,
     customerId: filters.customerId || undefined,
@@ -111,7 +114,7 @@ export async function getOrderIndexData(filters: OrderFilters, user: ScopedUser)
             supplierId: filters.supplierId,
           },
         }
-      : scope?.suppliers,
+      : undefined,
     OR: filters.search
       ? [
           {
@@ -129,6 +132,11 @@ export async function getOrderIndexData(filters: OrderFilters, user: ScopedUser)
         ]
       : undefined,
   };
+  const where: Prisma.OrderWhereInput = scope
+    ? {
+        AND: [scope, filterWhere],
+      }
+    : filterWhere;
 
   const [total, filterOptions] = await Promise.all([
     prisma.order.count({ where }),

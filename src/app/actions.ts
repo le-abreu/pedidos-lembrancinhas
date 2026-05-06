@@ -1123,15 +1123,13 @@ export async function createOrder(formData: FormData) {
     },
   });
 
-  const selectedProducts = getSelectedIds(formData, "productId");
-
   const selectedSuppliers = formData
     .getAll("supplierId")
     .map((value) => value.toString())
     .filter(Boolean);
 
   const products = (await prisma.orderTypeProduct.findMany({
-    where: selectedProducts.length ? { id: { in: selectedProducts } } : { orderTypeId, active: true },
+    where: { orderTypeId, active: true },
   })) as unknown as Array<{
       id: string;
       defaultQuantity: number | null;
@@ -1226,7 +1224,6 @@ export async function updateOrder(formData: FormData) {
   const deliveryAddress = asOptionalString(formData.get("deliveryAddress"));
   const additionalChargeAmount = asDecimal(formData.get("additionalChargeAmount")) ?? "0";
   const additionalChargeReason = asOptionalString(formData.get("additionalChargeReason"));
-  const selectedProducts = getSelectedIds(formData, "productId");
   const selectedSuppliers = getSelectedIds(formData, "supplierId");
   const orderPhotoFiles = getSelectedUploadFiles(formData, "orderPhoto");
 
@@ -1266,9 +1263,7 @@ export async function updateOrder(formData: FormData) {
   });
 
   const products = (await prisma.orderTypeProduct.findMany({
-    where: selectedProducts.length
-      ? { id: { in: selectedProducts } }
-      : { orderTypeId: existingOrder.orderTypeId, active: true },
+    where: { orderTypeId: existingOrder.orderTypeId, active: true },
   })) as unknown as Array<{
       id: string;
       defaultQuantity: number | null;

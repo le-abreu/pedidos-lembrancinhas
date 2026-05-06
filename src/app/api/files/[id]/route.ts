@@ -41,7 +41,9 @@ async function canAccessStoredFile(storedFileId: string) {
     (prisma as any).orderType.findFirst({
       where: {
         fileStoredFileId: storedFileId,
-        orders: scope,
+        orders: {
+          some: scope,
+        },
       },
     }),
     (prisma as any).orderTypeProduct.findFirst({
