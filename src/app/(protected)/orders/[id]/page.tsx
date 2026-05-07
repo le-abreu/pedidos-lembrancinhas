@@ -66,6 +66,8 @@ export default async function OrderDetailPage({
     active: boolean;
     requestedQuantity: number;
     shippingPrice: { toString(): string } | string | number | null;
+    itemsSubtotal: { toString(): string } | string | number | null;
+    finalTotal: { toString(): string } | string | number | null;
     additionalChargeAmount: { toString(): string } | string | number | null;
     additionalChargeReason: string | null;
     deliveryAddress: string | null;
@@ -275,13 +277,17 @@ export default async function OrderDetailPage({
     (sum: number, item) => sum + item.quantity * Number(item.unitPrice ?? 0),
     0
   );
+  const persistedItemsSubtotal = Number(typedOrder.itemsSubtotal ?? 0);
+  const resolvedItemsSubtotal = persistedItemsSubtotal || orderItemsTotal;
   const shippingPrice = Number(typedOrder.shippingPrice ?? 0);
   const additionalChargeAmount = Number(typedOrder.additionalChargeAmount ?? 0);
   const orderWeightTotal = typedOrder.items.reduce(
     (sum: number, item) => sum + item.quantity * Number(item.unitWeight ?? 0),
     0
   );
-  const orderFinalTotal = orderItemsTotal + shippingPrice + additionalChargeAmount;
+  const persistedFinalTotal = Number(typedOrder.finalTotal ?? 0);
+  const orderFinalTotal =
+    persistedFinalTotal || resolvedItemsSubtotal + shippingPrice + additionalChargeAmount;
   const orderPhotoFiles = typedOrder.attachments
     .map((attachment) => attachment.storedFile)
     .filter((file) => isImageFile(file));
@@ -446,7 +452,7 @@ export default async function OrderDetailPage({
               </div>
               <div className="detail-block">
                 <strong>Totalizador dos itens</strong>
-                <span>{formatCurrency(orderItemsTotal)}</span>
+                <span>{formatCurrency(resolvedItemsSubtotal)}</span>
               </div>
               <div className="detail-block">
                 <strong>Peso total do pedido</strong>

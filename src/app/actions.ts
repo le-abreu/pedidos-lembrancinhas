@@ -11,6 +11,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireCurrentUser } from "@/lib/auth";
+import {
+  calculateFreight,
+  formatFreightAddress,
+  hasMinimumFreightAddress,
+  normalizeShippingMethodName,
+  type FreightAddress,
+  type FreightCalculationType,
+} from "@/lib/freight-calculator";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
@@ -96,6 +104,85 @@ function getSelectedIds(formData: FormData, field: string) {
 
 function getSelectedUploadFiles(formData: FormData, field: string) {
   return formData.getAll(field).filter(isUploadFile);
+}
+
+function getFreightAddressPayload(formData: FormData): FreightAddress {
+  return {
+    zipCode: asOptionalString(formData.get("deliveryZipCode")),
+    street: asOptionalString(formData.get("deliveryStreet")),
+    number: asOptionalString(formData.get("deliveryNumber")),
+    complement: asOptionalString(formData.get("deliveryComplement")),
+    neighborhood: asOptionalString(formData.get("deliveryNeighborhood")),
+    city: asOptionalString(formData.get("deliveryCity")),
+    state: asOptionalString(formData.get("deliveryState")),
+    reference: asOptionalString(formData.get("deliveryReference")),
+  };
+}
+
+function getCustomerAddressPayload(formData: FormData) {
+  return {
+    addressZipCode: asOptionalString(formData.get("addressZipCode")),
+    addressStreet: asOptionalString(formData.get("addressStreet")),
+    addressNumber: asOptionalString(formData.get("addressNumber")),
+    addressComplement: asOptionalString(formData.get("addressComplement")),
+    addressNeighborhood: asOptionalString(formData.get("addressNeighborhood")),
+    addressCity: asOptionalString(formData.get("addressCity")),
+    addressState: asOptionalString(formData.get("addressState")),
+    addressReference: asOptionalString(formData.get("addressReference")),
+  };
+}
+
+function getOrderDeliveryAddressData(address: FreightAddress) {
+  return {
+    deliveryZipCode: address.zipCode ?? null,
+    deliveryStreet: address.street ?? null,
+    deliveryNumber: address.number ?? null,
+    deliveryComplement: address.complement ?? null,
+    deliveryNeighborhood: address.neighborhood ?? null,
+    deliveryCity: address.city ?? null,
+    deliveryState: address.state ?? null,
+    deliveryReference: address.reference ?? null,
+    deliveryAddress: formatFreightAddress(address) || null,
+  };
+}
+
+function getShippingMethodPayload(formData: FormData) {
+  const name = asString(formData.get("name"));
+  const requestedCalculationType =
+    (asString(formData.get("calculationType")) || "FIXED") as FreightCalculationType;
+  const calculationType =
+    normalizeShippingMethodName(name) === "retirada" ? "PICKUP" : requestedCalculationType;
+
+  return {
+    name,
+    description: asOptionalString(formData.get("description")),
+    calculationType,
+    fixedPrice: calculationType === "PICKUP" ? "0" : asDecimal(formData.get("fixedPrice")) ?? "0",
+  };
+}
+
+async function calculateOrderFreight(shippingMethodId: string, address: FreightAddress) {
+  const shippingMethod = await (prisma as any).shippingMethod.findUnique({
+    where: { id: shippingMethodId },
+    select: {
+      id: true,
+      name: true,
+      calculationType: true,
+      fixedPrice: true,
+    },
+  });
+
+  if (!shippingMethod) {
+    throw new Error("Tipo de frete não encontrado.");
+  }
+
+  const freight = calculateFreight({ shippingMethod, address });
+
+  if (freight.requiresAddress && !hasMinimumFreightAddress(address)) {
+    throw new Error("Informe CEP, logradouro, número, bairro, cidade e estado para calcular o frete.");
+  }
+
+  return freight;
 }
 
 function getSupplierAccessValues(formData: FormData) {
@@ -393,13 +480,14 @@ export async function toggleCompanyActive(formData: FormData) {
 }
 
 export async function createCustomer(formData: FormData) {
-  await prisma.customer.create({
+  await (prisma as any).customer.create({
     data: {
       companyId: asString(formData.get("companyId")),
       name: asString(formData.get("name")),
       document: asOptionalString(formData.get("document")),
       email: asOptionalString(formData.get("email")),
       phone: asOptionalString(formData.get("phone")),
+      ...getCustomerAddressPayload(formData),
       notes: asOptionalString(formData.get("notes")),
       active: true,
     },
@@ -414,7 +502,7 @@ export async function createCustomer(formData: FormData) {
 export async function updateCustomer(formData: FormData) {
   const id = asString(formData.get("id"));
 
-  await prisma.customer.update({
+  await (prisma as any).customer.update({
     where: { id },
     data: {
       companyId: asString(formData.get("companyId")),
@@ -422,6 +510,7 @@ export async function updateCustomer(formData: FormData) {
       document: asOptionalString(formData.get("document")),
       email: asOptionalString(formData.get("email")),
       phone: asOptionalString(formData.get("phone")),
+      ...getCustomerAddressPayload(formData),
       notes: asOptionalString(formData.get("notes")),
     },
   });
@@ -644,8 +733,7 @@ export async function createStatus(formData: FormData) {
 export async function createShippingMethod(formData: FormData) {
   await (prisma as any).shippingMethod.create({
     data: {
-      name: asString(formData.get("name")),
-      description: asOptionalString(formData.get("description")),
+      ...getShippingMethodPayload(formData),
       active: true,
     },
   });
@@ -661,10 +749,7 @@ export async function updateShippingMethod(formData: FormData) {
 
   await (prisma as any).shippingMethod.update({
     where: { id },
-    data: {
-      name: asString(formData.get("name")),
-      description: asOptionalString(formData.get("description")),
-    },
+    data: getShippingMethodPayload(formData),
   });
 
   revalidateCrudPaths(
@@ -1031,8 +1116,7 @@ export async function createOrder(formData: FormData) {
   const orderTypeId = asString(formData.get("orderTypeId"));
   const requestedQuantity = asRequiredInt(formData.get("requestedQuantity"), "Quantidade de lembrancinhas");
   const shippingMethodId = asString(formData.get("shippingMethodId"));
-  const shippingPrice = asDecimal(formData.get("shippingPrice")) ?? "0";
-  const deliveryAddress = asOptionalString(formData.get("deliveryAddress"));
+  const freightAddress = getFreightAddressPayload(formData);
   const additionalChargeAmount = asDecimal(formData.get("additionalChargeAmount")) ?? "0";
   const additionalChargeReason = asOptionalString(formData.get("additionalChargeReason"));
   const orderPhotoFiles = getSelectedUploadFiles(formData, "orderPhoto");
@@ -1067,10 +1151,6 @@ export async function createOrder(formData: FormData) {
     throw new Error("Selecione o tipo de frete.");
   }
 
-  if (!deliveryAddress) {
-    throw new Error("Informe o endereço de entrega.");
-  }
-
   const selectedCustomerId = asString(formData.get("customerId"));
   const selectedCompanyId = asString(formData.get("companyId"));
   const accessibleCustomerIds = getAccessibleCustomerIds(user);
@@ -1098,31 +1178,6 @@ export async function createOrder(formData: FormData) {
     }
   }
 
-  const order = await (prisma.order as any).create({
-    data: {
-      companyId: isClient ? selectedCustomer?.companyId ?? "" : selectedCompanyId,
-      customerId: isClient ? selectedCustomer?.id ?? "" : selectedCustomerId,
-      orderTypeId,
-      workflowId: workflow.id,
-      currentStatusId,
-      createdById: user.id,
-      shippingMethodId,
-      shippingPrice,
-      additionalChargeAmount,
-      additionalChargeReason,
-      requestedQuantity,
-      deliveryAddress,
-      title: asString(formData.get("title")),
-      description: asOptionalString(formData.get("description")),
-      requestedAt: new Date(asString(formData.get("requestedAt"))),
-      expectedAt: asOptionalString(formData.get("expectedAt"))
-        ? new Date(asString(formData.get("expectedAt")))
-        : null,
-      notes: asOptionalString(formData.get("notes")),
-      active: true,
-    },
-  });
-
   const selectedSuppliers = formData
     .getAll("supplierId")
     .map((value) => value.toString())
@@ -1144,6 +1199,43 @@ export async function createOrder(formData: FormData) {
       defaultUnitPrice: string | null;
       defaultUnitWeight: string | null;
   }>;
+  const itemsSubtotal = products.reduce((sum, product) => {
+    const quantity =
+      asRequiredNonNegativeInt(
+        formData.get(`productQuantity:${product.id}`),
+        `Quantidade do item ${product.id}`,
+      ) || requestedQuantity * (product.defaultQuantity ?? 1);
+    return sum + quantity * Number(product.defaultUnitPrice ?? 0);
+  }, 0);
+  const freight = await calculateOrderFreight(shippingMethodId, freightAddress);
+  const finalTotal = itemsSubtotal + freight.amount + Number(additionalChargeAmount);
+
+  const order = await (prisma.order as any).create({
+    data: {
+      companyId: isClient ? selectedCustomer?.companyId ?? "" : selectedCompanyId,
+      customerId: isClient ? selectedCustomer?.id ?? "" : selectedCustomerId,
+      orderTypeId,
+      workflowId: workflow.id,
+      currentStatusId,
+      createdById: user.id,
+      shippingMethodId,
+      shippingPrice: freight.amount.toFixed(2),
+      itemsSubtotal: itemsSubtotal.toFixed(2),
+      finalTotal: finalTotal.toFixed(2),
+      additionalChargeAmount,
+      additionalChargeReason,
+      requestedQuantity,
+      ...getOrderDeliveryAddressData(freightAddress),
+      title: asString(formData.get("title")),
+      description: asOptionalString(formData.get("description")),
+      requestedAt: new Date(asString(formData.get("requestedAt"))),
+      expectedAt: asOptionalString(formData.get("expectedAt"))
+        ? new Date(asString(formData.get("expectedAt")))
+        : null,
+      notes: asOptionalString(formData.get("notes")),
+      active: true,
+    },
+  });
 
   if (products.length) {
     await prisma.orderItem.createMany({
@@ -1228,8 +1320,7 @@ export async function updateOrder(formData: FormData) {
 
   const requestedQuantity = asRequiredInt(formData.get("requestedQuantity"), "Quantidade de lembrancinhas");
   const shippingMethodId = asString(formData.get("shippingMethodId"));
-  const shippingPrice = asDecimal(formData.get("shippingPrice")) ?? "0";
-  const deliveryAddress = asOptionalString(formData.get("deliveryAddress"));
+  const freightAddress = getFreightAddressPayload(formData);
   const additionalChargeAmount = asDecimal(formData.get("additionalChargeAmount")) ?? "0";
   const additionalChargeReason = asOptionalString(formData.get("additionalChargeReason"));
   const selectedProducts = getSelectedIds(formData, "productId");
@@ -1239,37 +1330,6 @@ export async function updateOrder(formData: FormData) {
   if (!shippingMethodId) {
     throw new Error("Selecione o tipo de frete.");
   }
-
-  if (!deliveryAddress) {
-    throw new Error("Informe o endereço de entrega.");
-  }
-
-  await (prisma.order as any).update({
-    where: { id },
-    data: {
-      companyId: asString(formData.get("companyId")),
-      customerId: asString(formData.get("customerId")),
-      currentStatusId: asString(formData.get("currentStatusId")),
-      createdById: existingOrder.createdById,
-      shippingMethodId,
-      shippingPrice,
-      additionalChargeAmount,
-      additionalChargeReason,
-      requestedQuantity,
-      deliveryAddress,
-      title: asString(formData.get("title")),
-      description: asOptionalString(formData.get("description")),
-      requestedAt: new Date(asString(formData.get("requestedAt"))),
-      expectedAt: asOptionalString(formData.get("expectedAt"))
-        ? new Date(asString(formData.get("expectedAt")))
-        : null,
-      notes: asOptionalString(formData.get("notes")),
-    },
-  });
-
-  await prisma.orderItem.deleteMany({
-    where: { orderId: id },
-  });
 
   const products = (await prisma.orderTypeProduct.findMany({
     where: {
@@ -1286,6 +1346,45 @@ export async function updateOrder(formData: FormData) {
       defaultUnitPrice: string | null;
       defaultUnitWeight: string | null;
   }>;
+  const itemsSubtotal = products.reduce((sum, product) => {
+    const quantity =
+      asRequiredNonNegativeInt(
+        formData.get(`productQuantity:${product.id}`),
+        `Quantidade do item ${product.id}`,
+      ) || requestedQuantity * (product.defaultQuantity ?? 1);
+    return sum + quantity * Number(product.defaultUnitPrice ?? 0);
+  }, 0);
+  const freight = await calculateOrderFreight(shippingMethodId, freightAddress);
+  const finalTotal = itemsSubtotal + freight.amount + Number(additionalChargeAmount);
+
+  await (prisma.order as any).update({
+    where: { id },
+    data: {
+      companyId: asString(formData.get("companyId")),
+      customerId: asString(formData.get("customerId")),
+      currentStatusId: asString(formData.get("currentStatusId")),
+      createdById: existingOrder.createdById,
+      shippingMethodId,
+      shippingPrice: freight.amount.toFixed(2),
+      itemsSubtotal: itemsSubtotal.toFixed(2),
+      finalTotal: finalTotal.toFixed(2),
+      additionalChargeAmount,
+      additionalChargeReason,
+      requestedQuantity,
+      ...getOrderDeliveryAddressData(freightAddress),
+      title: asString(formData.get("title")),
+      description: asOptionalString(formData.get("description")),
+      requestedAt: new Date(asString(formData.get("requestedAt"))),
+      expectedAt: asOptionalString(formData.get("expectedAt"))
+        ? new Date(asString(formData.get("expectedAt")))
+        : null,
+      notes: asOptionalString(formData.get("notes")),
+    },
+  });
+
+  await prisma.orderItem.deleteMany({
+    where: { orderId: id },
+  });
 
   if (products.length) {
     await prisma.orderItem.createMany({

@@ -12,13 +12,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const customer = await prisma.customer.create({
+  const customer = await (prisma as any).customer.create({
     data: {
       companyId: body.companyId,
       name: body.name,
       document: body.document ?? null,
       email: body.email ?? null,
       phone: body.phone ?? null,
+      addressZipCode: body.addressZipCode ?? null,
+      addressStreet: body.addressStreet ?? null,
+      addressNumber: body.addressNumber ?? null,
+      addressComplement: body.addressComplement ?? null,
+      addressNeighborhood: body.addressNeighborhood ?? null,
+      addressCity: body.addressCity ?? null,
+      addressState: body.addressState ?? null,
+      addressReference: body.addressReference ?? null,
       notes: body.notes ?? null,
       active: body.active ?? true,
     },
@@ -26,4 +34,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json(customer, { status: 201 });
 }
-

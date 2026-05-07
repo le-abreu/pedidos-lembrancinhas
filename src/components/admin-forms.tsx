@@ -1,5 +1,10 @@
-import { ExpectedFileType, SupplierType, UserProfileType } from "@prisma/client";
+import {
+  ExpectedFileType,
+  SupplierType,
+  UserProfileType,
+} from "@prisma/client";
 
+export { CustomerForm } from "@/components/customer-form";
 import { formatCurrency, formatWeight } from "@/lib/format";
 
 type BaseFormProps = {
@@ -46,71 +51,16 @@ export function CompanyForm({
       </label>
       <label className="field">
         <span>E-mail</span>
-        <input name="email" type="email" required defaultValue={item?.email ?? ""} />
+        <input
+          name="email"
+          type="email"
+          required
+          defaultValue={item?.email ?? ""}
+        />
       </label>
       <label className="field">
         <span>Telefone</span>
         <input name="phone" defaultValue={item?.phone ?? ""} />
-      </label>
-      <button className="primary-button" type="submit">
-        {submitLabel}
-      </button>
-    </form>
-  );
-}
-
-export function CustomerForm({
-  action,
-  submitLabel,
-  redirectPath,
-  item,
-  companies,
-}: BaseFormProps & {
-  item?: {
-    id: string;
-    companyId: string;
-    name: string;
-    document: string | null;
-    email: string | null;
-    phone: string | null;
-    notes: string | null;
-  } | null;
-  companies: Array<{ id: string; tradeName: string }>;
-}) {
-  return (
-    <form action={action} className="form-grid">
-      <input type="hidden" name="redirectPath" value={redirectPath} />
-      {item ? <input type="hidden" name="id" value={item.id} /> : null}
-      <label className="field">
-        <span>Empresa</span>
-        <select name="companyId" required defaultValue={item?.companyId ?? ""}>
-          <option value="">Selecione</option>
-          {companies.map((company) => (
-            <option key={company.id} value={company.id}>
-              {company.tradeName}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Nome</span>
-        <input name="name" required defaultValue={item?.name ?? ""} />
-      </label>
-      <label className="field">
-        <span>Documento</span>
-        <input name="document" defaultValue={item?.document ?? ""} />
-      </label>
-      <label className="field">
-        <span>E-mail</span>
-        <input name="email" type="email" defaultValue={item?.email ?? ""} />
-      </label>
-      <label className="field">
-        <span>Telefone</span>
-        <input name="phone" defaultValue={item?.phone ?? ""} />
-      </label>
-      <label className="field">
-        <span>Observação</span>
-        <textarea name="notes" rows={4} defaultValue={item?.notes ?? ""} />
       </label>
       <button className="primary-button" type="submit">
         {submitLabel}
@@ -199,7 +149,8 @@ export function UserForm({
   customers: Option[];
   suppliers: Option[];
 }) {
-  const selectedProfiles = item?.profiles?.map((profile) => profile.profile) ?? [];
+  const selectedProfiles =
+    item?.profiles?.map((profile) => profile.profile) ?? [];
 
   return (
     <form action={action} className="form-grid">
@@ -211,11 +162,21 @@ export function UserForm({
       </label>
       <label className="field">
         <span>E-mail</span>
-        <input name="email" type="email" required defaultValue={item?.email ?? ""} />
+        <input
+          name="email"
+          type="email"
+          required
+          defaultValue={item?.email ?? ""}
+        />
       </label>
       <label className="field">
         <span>Senha</span>
-        <input name="password" type="password" required defaultValue={item?.password ?? "123456"} />
+        <input
+          name="password"
+          type="password"
+          required
+          defaultValue={item?.password ?? "123456"}
+        />
       </label>
       <label className="field">
         <span>Empresa</span>
@@ -294,11 +255,20 @@ export function StatusForm({
       </label>
       <label className="field">
         <span>Cor</span>
-        <input name="color" type="color" required defaultValue={item?.color ?? "#a8562a"} />
+        <input
+          name="color"
+          type="color"
+          required
+          defaultValue={item?.color ?? "#a8562a"}
+        />
       </label>
       <label className="field">
         <span>Descrição</span>
-        <textarea name="description" rows={4} defaultValue={item?.description ?? ""} />
+        <textarea
+          name="description"
+          rows={4}
+          defaultValue={item?.description ?? ""}
+        />
       </label>
       <button className="primary-button" type="submit">
         {submitLabel}
@@ -317,6 +287,8 @@ export function ShippingMethodForm({
     id: string;
     name: string;
     description: string | null;
+    calculationType?: string | null;
+    fixedPrice?: { toString(): string } | string | null;
   } | null;
 }) {
   return (
@@ -329,7 +301,35 @@ export function ShippingMethodForm({
       </label>
       <label className="field">
         <span>Descrição</span>
-        <textarea name="description" rows={4} defaultValue={item?.description ?? ""} />
+        <textarea
+          name="description"
+          rows={4}
+          defaultValue={item?.description ?? ""}
+        />
+      </label>
+      <label className="field">
+        <span>Regra de cálculo</span>
+        <select
+          name="calculationType"
+          defaultValue={item?.calculationType ?? "FIXED"}
+        >
+          <option value="PICKUP">Retirada sem custo</option>
+          <option value="FIXED">Valor fixo</option>
+          <option value="DISTANCE">Distância (estrutura futura)</option>
+          <option value="REGION">Cidade/bairro (estrutura futura)</option>
+          <option value="WEIGHT">Peso (estrutura futura)</option>
+          <option value="EXTERNAL_API">API externa (estrutura futura)</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Valor fixo</span>
+        <input
+          name="fixedPrice"
+          type="number"
+          min="0"
+          step="0.01"
+          defaultValue={item?.fixedPrice?.toString() ?? "0"}
+        />
       </label>
       <button className="primary-button" type="submit">
         {submitLabel}
@@ -358,7 +358,12 @@ export function OrderTypeForm({
 
   return (
     <>
-      <form id={formId} action={action} className="form-grid order-type-form" encType="multipart/form-data">
+      <form
+        id={formId}
+        action={action}
+        className="form-grid order-type-form"
+        encType="multipart/form-data"
+      >
         <input type="hidden" name="redirectPath" value={redirectPath} />
         {item ? <input type="hidden" name="id" value={item.id} /> : null}
         <label className="field">
@@ -367,13 +372,21 @@ export function OrderTypeForm({
         </label>
         <label className="field order-type-description-field">
           <span>Descrição</span>
-          <textarea name="description" rows={4} defaultValue={item?.description ?? ""} />
+          <textarea
+            name="description"
+            rows={4}
+            defaultValue={item?.description ?? ""}
+          />
         </label>
         <label className="field">
           <span>Arquivo do tipo</span>
           <input name="file" type="file" />
           {item?.fileStoredFile ? (
-            <a className="inline-file-link" href={`/api/files/${item.fileStoredFile.id}`} target="_blank">
+            <a
+              className="inline-file-link"
+              href={`/api/files/${item.fileStoredFile.id}`}
+              target="_blank"
+            >
               Atual: {item.fileStoredFile.originalName}
             </a>
           ) : null}
@@ -423,11 +436,20 @@ export function OrderTypeProductForm({
       </label>
       <label className="field">
         <span>Descrição</span>
-        <textarea name="description" rows={3} defaultValue={item?.description ?? ""} />
+        <textarea
+          name="description"
+          rows={3}
+          defaultValue={item?.description ?? ""}
+        />
       </label>
       <label className="field">
         <span>Qtd por lembrancinha</span>
-        <input name="defaultQuantity" type="number" min="1" defaultValue={item?.defaultQuantity ?? ""} />
+        <input
+          name="defaultQuantity"
+          type="number"
+          min="1"
+          defaultValue={item?.defaultQuantity ?? ""}
+        />
       </label>
       <label className="field">
         <span>Custo padrão</span>
@@ -453,13 +475,21 @@ export function OrderTypeProductForm({
         <span>Arquivo do produto</span>
         <input name="file" type="file" accept="image/*" />
         {item?.fileStoredFile ? (
-          <a className="inline-file-link" href={`/api/files/${item.fileStoredFile.id}`} target="_blank">
+          <a
+            className="inline-file-link"
+            href={`/api/files/${item.fileStoredFile.id}`}
+            target="_blank"
+          >
             Atual: {item.fileStoredFile.originalName}
           </a>
         ) : null}
       </label>
       <label className="field-checkbox">
-        <input type="checkbox" name="required" defaultChecked={item?.required ?? false} />
+        <input
+          type="checkbox"
+          name="required"
+          defaultChecked={item?.required ?? false}
+        />
         <span>Obrigatório</span>
       </label>
       <button className="primary-button" type="submit">
@@ -490,7 +520,11 @@ export function WorkflowForm({
       {item ? <input type="hidden" name="id" value={item.id} /> : null}
       <label className="field">
         <span>Tipo de pedido</span>
-        <select name="orderTypeId" required defaultValue={item?.orderTypeId ?? ""}>
+        <select
+          name="orderTypeId"
+          required
+          defaultValue={item?.orderTypeId ?? ""}
+        >
           <option value="">Selecione</option>
           {orderTypes.map((orderType) => (
             <option key={orderType.id} value={orderType.id}>
@@ -505,7 +539,11 @@ export function WorkflowForm({
       </label>
       <label className="field">
         <span>Descrição</span>
-        <textarea name="description" rows={4} defaultValue={item?.description ?? ""} />
+        <textarea
+          name="description"
+          rows={4}
+          defaultValue={item?.description ?? ""}
+        />
       </label>
       <button className="primary-button" type="submit">
         {submitLabel}
@@ -554,19 +592,36 @@ export function WorkflowPhaseForm({
       </label>
       <label className="field">
         <span>Ordem</span>
-        <input name="order" type="number" min="1" required defaultValue={item?.order ?? ""} />
+        <input
+          name="order"
+          type="number"
+          min="1"
+          required
+          defaultValue={item?.order ?? ""}
+        />
       </label>
       <label className="field">
         <span>Descrição</span>
-        <textarea name="description" rows={3} defaultValue={item?.description ?? ""} />
+        <textarea
+          name="description"
+          rows={3}
+          defaultValue={item?.description ?? ""}
+        />
       </label>
       <label className="field">
         <span>Mensagem orientativa</span>
-        <textarea name="guidanceMessage" rows={3} defaultValue={item?.guidanceMessage ?? ""} />
+        <textarea
+          name="guidanceMessage"
+          rows={3}
+          defaultValue={item?.guidanceMessage ?? ""}
+        />
       </label>
       <label className="field">
         <span>Tipo de arquivo esperado</span>
-        <select name="expectedFileType" defaultValue={item?.expectedFileType ?? ExpectedFileType.ANY}>
+        <select
+          name="expectedFileType"
+          defaultValue={item?.expectedFileType ?? ExpectedFileType.ANY}
+        >
           {Object.values(ExpectedFileType).map((type) => (
             <option key={type} value={type}>
               {type}
@@ -576,7 +631,10 @@ export function WorkflowPhaseForm({
       </label>
       <label className="field">
         <span>Fornecedor responsável</span>
-        <select name="responsibleSupplierId" defaultValue={item?.responsibleSupplierId ?? ""}>
+        <select
+          name="responsibleSupplierId"
+          defaultValue={item?.responsibleSupplierId ?? ""}
+        >
           <option value="">Sem fornecedor fixo</option>
           {suppliers.map((supplier) => (
             <option key={supplier.id} value={supplier.id}>
@@ -597,11 +655,19 @@ export function WorkflowPhaseForm({
         </select>
       </label>
       <label className="field-checkbox">
-        <input type="checkbox" name="allowsFileUpload" defaultChecked={item?.allowsFileUpload ?? false} />
+        <input
+          type="checkbox"
+          name="allowsFileUpload"
+          defaultChecked={item?.allowsFileUpload ?? false}
+        />
         <span>Permite upload</span>
       </label>
       <label className="field-checkbox">
-        <input type="checkbox" name="requiresSupplier" defaultChecked={item?.requiresSupplier ?? false} />
+        <input
+          type="checkbox"
+          name="requiresSupplier"
+          defaultChecked={item?.requiresSupplier ?? false}
+        />
         <span>Exige fornecedor responsável</span>
       </label>
       <label className="field-checkbox">
@@ -613,15 +679,27 @@ export function WorkflowPhaseForm({
         <span>Altera status do pedido</span>
       </label>
       <label className="field-checkbox">
-        <input type="checkbox" name="allowsInvoice" defaultChecked={item?.allowsInvoice ?? false} />
+        <input
+          type="checkbox"
+          name="allowsInvoice"
+          defaultChecked={item?.allowsInvoice ?? false}
+        />
         <span>Permite nota fiscal</span>
       </label>
       <label className="field-checkbox">
-        <input type="checkbox" name="requiresComment" defaultChecked={item?.requiresComment ?? false} />
+        <input
+          type="checkbox"
+          name="requiresComment"
+          defaultChecked={item?.requiresComment ?? false}
+        />
         <span>Exige comentário</span>
       </label>
       <label className="field-checkbox">
-        <input type="checkbox" name="active" defaultChecked={item?.active ?? true} />
+        <input
+          type="checkbox"
+          name="active"
+          defaultChecked={item?.active ?? true}
+        />
         <span>Ativa</span>
       </label>
       <button className="primary-button" type="submit">
@@ -683,24 +761,40 @@ export function OrderForm({
   suppliers: Option[];
   isClientView?: boolean;
 }) {
-  const selectedProducts = new Set(item?.items?.map((orderItem) => orderItem.productId) ?? []);
-  const selectedSuppliers = new Set(item?.suppliers?.map((supplier) => supplier.supplierId) ?? []);
+  const selectedProducts = new Set(
+    item?.items?.map((orderItem) => orderItem.productId) ?? []
+  );
+  const selectedSuppliers = new Set(
+    item?.suppliers?.map((supplier) => supplier.supplierId) ?? []
+  );
   const defaultOrderTypeId = item?.orderTypeId ?? orderTypes[0]?.id ?? "";
   const selectedOrderType =
-    orderTypes.find((orderType) => orderType.id === defaultOrderTypeId) ?? orderTypes[0] ?? null;
+    orderTypes.find((orderType) => orderType.id === defaultOrderTypeId) ??
+    orderTypes[0] ??
+    null;
   const requestedQuantity = item?.requestedQuantity ?? 1;
   const selectedOrderProducts = selectedOrderType
     ? selectedOrderType.products.filter((product) =>
-        selectedProducts.size ? selectedProducts.has(product.id) : true,
+        selectedProducts.size ? selectedProducts.has(product.id) : true
       )
     : [];
   const itemsTotal = selectedOrderProducts.reduce((sum, product) => {
     const quantityPerGift = product.defaultQuantity ?? 1;
-    return sum + requestedQuantity * quantityPerGift * Number(product.defaultUnitPrice?.toString() ?? 0);
+    return (
+      sum +
+      requestedQuantity *
+        quantityPerGift *
+        Number(product.defaultUnitPrice?.toString() ?? 0)
+    );
   }, 0);
   const itemsWeight = selectedOrderProducts.reduce((sum, product) => {
     const quantityPerGift = product.defaultQuantity ?? 1;
-    return sum + requestedQuantity * quantityPerGift * Number(product.defaultUnitWeight?.toString() ?? 0);
+    return (
+      sum +
+      requestedQuantity *
+        quantityPerGift *
+        Number(product.defaultUnitWeight?.toString() ?? 0)
+    );
   }, 0);
   const shippingPrice = Number(item?.shippingPrice?.toString() ?? 0);
   const finalTotal = itemsTotal + shippingPrice;
@@ -709,7 +803,13 @@ export function OrderForm({
     <form action={action} className="order-form-layout">
       <input type="hidden" name="redirectPath" value={redirectPath} />
       {item ? <input type="hidden" name="id" value={item.id} /> : null}
-      {isClientView ? <input type="hidden" name="createdById" value={item?.createdById ?? users[0]?.id ?? ""} /> : null}
+      {isClientView ? (
+        <input
+          type="hidden"
+          name="createdById"
+          value={item?.createdById ?? users[0]?.id ?? ""}
+        />
+      ) : null}
       <div className="card page-stack order-form-section">
         <div className="section-heading">
           <h3>Dados principais</h3>
@@ -718,7 +818,11 @@ export function OrderForm({
           {isClientView ? null : (
             <label className="field">
               <span>Empresa</span>
-              <select name="companyId" required defaultValue={item?.companyId ?? ""}>
+              <select
+                name="companyId"
+                required
+                defaultValue={item?.companyId ?? ""}
+              >
                 <option value="">Selecione</option>
                 {companies.map((company) => (
                   <option key={company.id} value={company.id}>
@@ -730,7 +834,11 @@ export function OrderForm({
           )}
           <label className="field">
             <span>Cliente</span>
-            <select name="customerId" required defaultValue={item?.customerId ?? ""}>
+            <select
+              name="customerId"
+              required
+              defaultValue={item?.customerId ?? ""}
+            >
               <option value="">Selecione</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
@@ -741,7 +849,11 @@ export function OrderForm({
           </label>
           <label className="field">
             <span>Tipo de pedido</span>
-            <select name="orderTypeId" required defaultValue={item?.orderTypeId ?? ""}>
+            <select
+              name="orderTypeId"
+              required
+              defaultValue={item?.orderTypeId ?? ""}
+            >
               <option value="">Selecione</option>
               {orderTypes.map((orderType) => (
                 <option key={orderType.id} value={orderType.id}>
@@ -754,7 +866,11 @@ export function OrderForm({
             <>
               <label className="field">
                 <span>Status atual</span>
-                <select name="currentStatusId" required defaultValue={item?.currentStatusId ?? ""}>
+                <select
+                  name="currentStatusId"
+                  required
+                  defaultValue={item?.currentStatusId ?? ""}
+                >
                   <option value="">Selecione</option>
                   {statuses.map((status) => (
                     <option key={status.id} value={status.id}>
@@ -765,7 +881,11 @@ export function OrderForm({
               </label>
               <label className="field">
                 <span>Responsável pelo cadastro</span>
-                <select name="createdById" required defaultValue={item?.createdById ?? ""}>
+                <select
+                  name="createdById"
+                  required
+                  defaultValue={item?.createdById ?? ""}
+                >
                   <option value="">Selecione</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
@@ -809,7 +929,11 @@ export function OrderForm({
           </label>
           <label className="field order-form-wide">
             <span>Descrição</span>
-            <textarea name="description" rows={4} defaultValue={item?.description ?? ""} />
+            <textarea
+              name="description"
+              rows={4}
+              defaultValue={item?.description ?? ""}
+            />
           </label>
           <label className="field order-form-wide">
             <span>Observação</span>
@@ -826,7 +950,11 @@ export function OrderForm({
           <div className="form-grid">
             <label className="field">
               <span>Tipo de frete</span>
-              <select name="shippingMethodId" required defaultValue={item?.shippingMethodId ?? ""}>
+              <select
+                name="shippingMethodId"
+                required
+                defaultValue={item?.shippingMethodId ?? ""}
+              >
                 <option value="">Selecione</option>
                 {shippingMethods.map((shippingMethod) => (
                   <option key={shippingMethod.id} value={shippingMethod.id}>
@@ -847,7 +975,11 @@ export function OrderForm({
             </label>
             <label className="field order-form-wide">
               <span>Endereço de entrega</span>
-              <textarea name="deliveryAddress" rows={4} defaultValue={item?.deliveryAddress ?? ""} />
+              <textarea
+                name="deliveryAddress"
+                rows={4}
+                defaultValue={item?.deliveryAddress ?? ""}
+              />
             </label>
           </div>
 
@@ -882,11 +1014,13 @@ export function OrderForm({
             <p className="eyebrow">Produtos do template</p>
             {selectedOrderType ? (
               <span className="muted">
-                Template base: {selectedOrderType.name}. O valor final usa o total dos itens selecionados mais o
-                frete informado.
+                Template base: {selectedOrderType.name}. O valor final usa o
+                total dos itens selecionados mais o frete informado.
               </span>
             ) : (
-              <span className="muted">Selecione um tipo de pedido para montar o template.</span>
+              <span className="muted">
+                Selecione um tipo de pedido para montar o template.
+              </span>
             )}
           </div>
           <div className="order-products-list">
@@ -904,12 +1038,18 @@ export function OrderForm({
                     {" | "}
                     {product.defaultQuantity ?? 1} por lembrancinha
                     {" | "}
-                    custo {formatCurrency(product.defaultUnitPrice?.toString() ?? null)}
+                    custo{" "}
+                    {formatCurrency(
+                      product.defaultUnitPrice?.toString() ?? null
+                    )}
                     {" | "}
-                    peso {formatWeight(product.defaultUnitWeight?.toString() ?? null)}
+                    peso{" "}
+                    {formatWeight(
+                      product.defaultUnitWeight?.toString() ?? null
+                    )}
                   </span>
                 </label>
-              )),
+              ))
             )}
           </div>
         </div>

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  calculateFreight,
+  formatFreightAddress,
+  hasMinimumFreightAddress,
+} from "@/lib/freight-calculator";
 import { prisma } from "@/lib/prisma";
 import { getOrderIndexData } from "@/server/services/order-service";
 
@@ -42,9 +47,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const workflow = await prisma.workflow.findUnique({
-    where: { orderTypeId: body.orderTypeId },
-  });
+  const [workflow, shippingMethod] = await Promise.all([
+    prisma.workflow.findUnique({
+      where: { orderTypeId: body.orderTypeId },
+    }),
+    (prisma as any).shippingMethod.findUnique({
+      where: { id: body.shippingMethodId },
+      select: { id: true, name: true, calculationType: true, fixedPrice: true },
+    }),
+  ]);
 
   if (!workflow) {
     return NextResponse.json(
@@ -53,7 +64,33 @@ export async function POST(request: Request) {
     );
   }
 
-  const order = await prisma.order.create({
+  if (!shippingMethod) {
+    return NextResponse.json({ message: "Tipo de frete não encontrado." }, { status: 400 });
+  }
+
+  const freightAddress = {
+    zipCode: body.deliveryZipCode ?? null,
+    street: body.deliveryStreet ?? null,
+    number: body.deliveryNumber ?? null,
+    complement: body.deliveryComplement ?? null,
+    neighborhood: body.deliveryNeighborhood ?? null,
+    city: body.deliveryCity ?? null,
+    state: body.deliveryState ?? null,
+    reference: body.deliveryReference ?? null,
+  };
+  const freight = calculateFreight({ shippingMethod, address: freightAddress });
+
+  if (freight.requiresAddress && !hasMinimumFreightAddress(freightAddress)) {
+    return NextResponse.json(
+      { message: "Informe CEP, logradouro, número, bairro, cidade e estado para calcular o frete." },
+      { status: 400 },
+    );
+  }
+
+  const itemsSubtotal = Number(body.itemsSubtotal ?? 0);
+  const additionalChargeAmount = Number(body.additionalChargeAmount ?? 0);
+
+  const order = await (prisma as any).order.create({
     data: {
       companyId: body.companyId,
       customerId: body.customerId,
@@ -63,8 +100,20 @@ export async function POST(request: Request) {
       createdById: body.createdById,
       shippingMethodId: body.shippingMethodId,
       requestedQuantity: body.requestedQuantity ?? 1,
-      shippingPrice: body.shippingPrice ?? 0,
-      deliveryAddress: body.deliveryAddress ?? null,
+      shippingPrice: freight.amount,
+      itemsSubtotal,
+      finalTotal: itemsSubtotal + freight.amount + additionalChargeAmount,
+      additionalChargeAmount,
+      additionalChargeReason: body.additionalChargeReason ?? null,
+      deliveryAddress: formatFreightAddress(freightAddress) || null,
+      deliveryZipCode: freightAddress.zipCode,
+      deliveryStreet: freightAddress.street,
+      deliveryNumber: freightAddress.number,
+      deliveryComplement: freightAddress.complement,
+      deliveryNeighborhood: freightAddress.neighborhood,
+      deliveryCity: freightAddress.city,
+      deliveryState: freightAddress.state,
+      deliveryReference: freightAddress.reference,
       title: body.title,
       description: body.description ?? null,
       requestedAt: new Date(body.requestedAt),

@@ -263,7 +263,7 @@ export async function getShippingMethodsList(filters: BaseListFilters) {
 
   const total = await prisma.shippingMethod.count({ where });
   const pagination = getPagination(filters.page, total, pageSize);
-  const items = await prisma.shippingMethod.findMany({
+  const items = await (prisma as any).shippingMethod.findMany({
     where,
     orderBy: { name: "asc" },
     skip: pagination.skip,
@@ -355,7 +355,7 @@ export async function getCompanyFormData(id?: string) {
 
 export async function getCustomerFormData(id?: string) {
   const [item, companies] = await Promise.all([
-    id ? prisma.customer.findUnique({ where: { id } }) : Promise.resolve(null),
+    id ? (prisma as any).customer.findUnique({ where: { id } }) : Promise.resolve(null),
     prisma.company.findMany({ where: { active: true }, orderBy: { tradeName: "asc" } }),
   ]);
 
@@ -454,7 +454,7 @@ export async function getOrderTypeFormData(id?: string) {
 }
 
 export async function getShippingMethodFormData(id?: string) {
-  return id ? prisma.shippingMethod.findUnique({ where: { id } }) : null;
+  return id ? (prisma as any).shippingMethod.findUnique({ where: { id } }) : null;
 }
 
 export async function getWorkflowFormData(id?: string) {

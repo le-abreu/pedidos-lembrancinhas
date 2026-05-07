@@ -55,6 +55,15 @@ enum AttachmentEntityType {
   INVOICE
 }
 
+enum FreightCalculationType {
+  PICKUP
+  FIXED
+  DISTANCE
+  REGION
+  WEIGHT
+  EXTERNAL_API
+}
+
 model Company {
   id            String     @id @default(cuid())
   legalName     String
@@ -78,6 +87,14 @@ model Customer {
   document    String?
   email       String?
   phone       String?
+  addressZipCode String?
+  addressStreet String?
+  addressNumber String?
+  addressComplement String?
+  addressNeighborhood String?
+  addressCity String?
+  addressState String?
+  addressReference String?
   notes       String?
   active      Boolean   @default(true)
   users       User[]
@@ -176,13 +193,15 @@ model OrderStatus {
 }
 
 model ShippingMethod {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
-  active      Boolean   @default(true)
-  orders      Order[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String                 @id @default(cuid())
+  name            String                 @unique
+  description     String?
+  calculationType FreightCalculationType @default(FIXED)
+  fixedPrice      Decimal                @default(0) @db.Decimal(10, 2)
+  active          Boolean                @default(true)
+  orders          Order[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 }
 
 model OrderType {
@@ -267,8 +286,18 @@ model Order {
   shippingMethodId  String
   requestedQuantity Int                   @default(1)
   shippingPrice     Decimal               @default(0) @db.Decimal(10, 2)
+  itemsSubtotal     Decimal               @default(0) @db.Decimal(10, 2)
+  finalTotal        Decimal               @default(0) @db.Decimal(10, 2)
   additionalChargeAmount Decimal          @default(0) @db.Decimal(10, 2)
   deliveryAddress   String?
+  deliveryZipCode   String?
+  deliveryStreet    String?
+  deliveryNumber    String?
+  deliveryComplement String?
+  deliveryNeighborhood String?
+  deliveryCity      String?
+  deliveryState     String?
+  deliveryReference String?
   company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   customer          Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   orderType         OrderType             @relation(fields: [orderTypeId], references: [id], onDelete: Restrict)

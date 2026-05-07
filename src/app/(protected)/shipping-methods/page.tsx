@@ -9,6 +9,7 @@ import { FormCard } from "@/components/form-card";
 import { PageHeader } from "@/components/page-header";
 import { PaginationControls } from "@/components/pagination-controls";
 import { requireAnyProfile } from "@/lib/auth";
+import { formatCurrency } from "@/lib/format";
 import { parseActiveFilter, parsePage, parseSearch } from "@/lib/pagination";
 import { getShippingMethodsList } from "@/server/services/admin-service";
 
@@ -64,6 +65,12 @@ export default async function ShippingMethodsPage({ searchParams }: PageProps) {
         columns={[
           { key: "nome", header: "Tipo de frete", render: (item: ShippingMethodRow) => item.name },
           { key: "descricao", header: "Descrição", render: (item: ShippingMethodRow) => item.description ?? "-" },
+          { key: "regra", header: "Regra", render: (item: ShippingMethodRow) => item.calculationType },
+          {
+            key: "valor",
+            header: "Valor fixo",
+            render: (item: ShippingMethodRow) => formatCurrency(item.fixedPrice?.toString() ?? "0"),
+          },
           { key: "pedidos", header: "Pedidos", render: (item: ShippingMethodRow) => item._count.orders },
           {
             key: "acoes",

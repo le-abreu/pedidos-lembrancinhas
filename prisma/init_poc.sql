@@ -11,11 +11,11 @@ INSERT INTO "Company" ("id", "legalName", "tradeName", "cnpj", "email", "phone",
 VALUES
   ('cmp_poc_memoria_viva', 'Lembrancinhas Exemplo LTDA', 'Atelie Memoria Viva', '12.345.678/0001-90', 'contato@memoriaviva.dev', '(11) 99999-0001', true, NOW(), NOW());
 
-INSERT INTO "Customer" ("id", "companyId", "name", "document", "email", "phone", "notes", "active", "createdAt", "updatedAt")
+INSERT INTO "Customer" ("id", "companyId", "name", "document", "email", "phone", "addressZipCode", "addressStreet", "addressNumber", "addressComplement", "addressNeighborhood", "addressCity", "addressState", "addressReference", "notes", "active", "createdAt", "updatedAt")
 VALUES
-  ('cust_poc_marina', 'cmp_poc_memoria_viva', 'Marina Costa', '123.456.789-00', 'marina@cliente.dev', '(11) 99999-1001', 'Cliente recorrente de festas infantis.', true, NOW(), NOW()),
-  ('cust_poc_horizonte', 'cmp_poc_memoria_viva', 'Empresa Horizonte', '45.678.123/0001-55', 'compras@horizonte.dev', '(11) 4002-1002', 'Atende kits corporativos e eventos internos.', true, NOW(), NOW()),
-  ('cust_poc_fernanda', 'cmp_poc_memoria_viva', 'Fernanda Alves', '987.654.321-00', 'fernanda@cliente.dev', '(11) 99999-1003', 'Solicita aprovacoes rapidas por WhatsApp.', true, NOW(), NOW());
+  ('cust_poc_marina', 'cmp_poc_memoria_viva', 'Marina Costa', '123.456.789-00', 'marina@cliente.dev', '(11) 99999-1001', '04001-000', 'Rua das Flores', '123', 'Apto 45', 'Vila Mariana', 'Sao Paulo', 'SP', 'Proximo ao metro.', 'Cliente recorrente de festas infantis.', true, NOW(), NOW()),
+  ('cust_poc_horizonte', 'cmp_poc_memoria_viva', 'Empresa Horizonte', '45.678.123/0001-55', 'compras@horizonte.dev', '(11) 4002-1002', '01310-100', 'Avenida Paulista', '1000', NULL, 'Bela Vista', 'Sao Paulo', 'SP', NULL, 'Atende kits corporativos e eventos internos.', true, NOW(), NOW()),
+  ('cust_poc_fernanda', 'cmp_poc_memoria_viva', 'Fernanda Alves', '987.654.321-00', 'fernanda@cliente.dev', '(11) 99999-1003', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Solicita aprovacoes rapidas por WhatsApp.', true, NOW(), NOW());
 
 INSERT INTO "Supplier" ("id", "name", "document", "email", "phone", "type", "notes", "active", "createdAt", "updatedAt")
 VALUES
@@ -43,13 +43,13 @@ VALUES
   ('status_poc_assinatura', 'Aguardando assinatura', 'Pedido aguardando aceite.', '#6a1b9a', true, NOW(), NOW()),
   ('status_poc_finalizado', 'Finalizado', 'Execucao concluida.', '#2e7d32', true, NOW(), NOW());
 
-INSERT INTO "ShippingMethod" ("id", "name", "description", "active", "createdAt", "updatedAt")
+INSERT INTO "ShippingMethod" ("id", "name", "description", "calculationType", "fixedPrice", "active", "createdAt", "updatedAt")
 VALUES
-  ('ship_poc_retirada', 'Retirada', 'Cliente retira no local combinado.', true, NOW(), NOW()),
-  ('ship_poc_propria', 'Entrega propria', 'Entrega realizada pela equipe interna.', true, NOW(), NOW()),
-  ('ship_poc_motoboy', 'Motoboy', 'Entrega urbana por parceiro.', true, NOW(), NOW()),
-  ('ship_poc_correios', 'Correios', 'Envio postal com rastreio.', true, NOW(), NOW()),
-  ('ship_poc_transportadora', 'Transportadora', 'Entrega por transportadora terceirizada.', true, NOW(), NOW());
+  ('ship_poc_retirada', 'Retirada', 'Cliente retira no local combinado.', 'PICKUP'::"FreightCalculationType", 0, true, NOW(), NOW()),
+  ('ship_poc_propria', 'Entrega propria', 'Entrega realizada pela equipe interna.', 'FIXED'::"FreightCalculationType", 25, true, NOW(), NOW()),
+  ('ship_poc_motoboy', 'Motoboy', 'Entrega urbana por parceiro.', 'FIXED'::"FreightCalculationType", 35, true, NOW(), NOW()),
+  ('ship_poc_correios', 'Correios', 'Envio postal com rastreio.', 'FIXED'::"FreightCalculationType", 45, true, NOW(), NOW()),
+  ('ship_poc_transportadora', 'Transportadora', 'Entrega por transportadora terceirizada.', 'FIXED'::"FreightCalculationType", 80, true, NOW(), NOW());
 
 INSERT INTO "OrderType" ("id", "fileStoredFileId", "name", "description", "active", "createdAt", "updatedAt")
 VALUES

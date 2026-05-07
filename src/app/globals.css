@@ -378,6 +378,34 @@ p {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.customer-form,
+.form-section {
+  display: grid;
+  gap: 18px;
+}
+
+.form-section {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-section:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.section-heading.compact {
+  gap: 10px;
+}
+
+.section-heading.compact h3 {
+  font-size: 1.05rem;
+}
+
+.customer-form > .primary-button {
+  justify-self: start;
+}
+
 .field,
 .field-checkbox {
   display: grid;
@@ -1312,6 +1340,7 @@ tbody tr:last-child td {
 
   .form-grid > .primary-button,
   .form-grid > .ghost-button,
+  .customer-form > .primary-button,
   .confirm-modal-actions > *,
   .toolbar-group > * {
     justify-self: stretch;

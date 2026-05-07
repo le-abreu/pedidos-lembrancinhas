@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  calculateFreight,
+  formatFreightAddress,
+  type FreightAddress,
+} from "@/lib/freight-calculator";
 import { formatCurrency, formatWeight } from "@/lib/format";
 
 type Option = {
@@ -29,6 +34,25 @@ type OrderTypeOption = {
   products: OrderTypeProduct[];
 };
 
+type CustomerOption = {
+  id: string;
+  name: string;
+  companyId?: string;
+  addressZipCode?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressReference?: string | null;
+};
+
+type ShippingMethodOption = Option & {
+  calculationType?: string | null;
+  fixedPrice?: { toString(): string } | string | number | null;
+};
+
 type OrderItemInput = {
   productId: string;
   quantity: number;
@@ -50,9 +74,19 @@ type Props = {
     requestedQuantity: number;
     shippingMethodId: string;
     shippingPrice: { toString(): string } | string | null;
+    itemsSubtotal?: { toString(): string } | string | null;
+    finalTotal?: { toString(): string } | string | null;
     additionalChargeAmount?: { toString(): string } | string | null;
     additionalChargeReason?: string | null;
     deliveryAddress: string | null;
+    deliveryZipCode?: string | null;
+    deliveryStreet?: string | null;
+    deliveryNumber?: string | null;
+    deliveryComplement?: string | null;
+    deliveryNeighborhood?: string | null;
+    deliveryCity?: string | null;
+    deliveryState?: string | null;
+    deliveryReference?: string | null;
     title: string;
     description: string | null;
     requestedAt: Date | string;
@@ -70,9 +104,9 @@ type Props = {
     }>;
   } | null;
   companies: Array<{ id: string; tradeName: string }>;
-  customers: Array<{ id: string; name: string; companyId?: string }>;
+  customers: CustomerOption[];
   statuses: Option[];
-  shippingMethods: Option[];
+  shippingMethods: ShippingMethodOption[];
   orderTypes: OrderTypeOption[];
   suppliers: Option[];
 };
@@ -97,6 +131,21 @@ function isImageFile(file: { mimeType: string | null }) {
   return Boolean(file.mimeType?.startsWith("image/"));
 }
 
+function getCustomerAddress(
+  customer: CustomerOption | null | undefined
+): FreightAddress {
+  return {
+    zipCode: customer?.addressZipCode ?? "",
+    street: customer?.addressStreet ?? "",
+    number: customer?.addressNumber ?? "",
+    complement: customer?.addressComplement ?? "",
+    neighborhood: customer?.addressNeighborhood ?? "",
+    city: customer?.addressCity ?? "",
+    state: customer?.addressState ?? "",
+    reference: customer?.addressReference ?? "",
+  };
+}
+
 export function OrderFormExperience({
   action,
   submitLabel,
@@ -114,6 +163,9 @@ export function OrderFormExperience({
 }: Props) {
   const initialOrderTypeId = item?.orderTypeId ?? orderTypes[0]?.id ?? "";
   const initialRequestedQuantity = String(item?.requestedQuantity ?? 1);
+  const initialCustomerId = item?.customerId ?? customers[0]?.id ?? "";
+  const initialCustomer =
+    customers.find((customer) => customer.id === initialCustomerId) ?? null;
   const initialSelectedSuppliers = new Set(
     item?.suppliers?.map((supplier) => supplier.supplierId) ?? []
   );
@@ -130,11 +182,19 @@ export function OrderFormExperience({
   const [selectedCompanyId, setSelectedCompanyId] = useState(
     item?.companyId ?? companies[0]?.id ?? ""
   );
-  const [selectedCustomerId, setSelectedCustomerId] = useState(
-    item?.customerId ?? customers[0]?.id ?? ""
-  );
+  const [selectedCustomerId, setSelectedCustomerId] =
+    useState(initialCustomerId);
   const [selectedOrderTypeId, setSelectedOrderTypeId] =
     useState(initialOrderTypeId);
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState(
+    item?.shippingMethodId ?? shippingMethods[0]?.id ?? ""
+  );
+  const [deliveryAddress, setDeliveryAddress] = useState<FreightAddress>(
+    getCustomerAddress(initialCustomer)
+  );
+  const [useDifferentDeliveryAddress, setUseDifferentDeliveryAddress] =
+    useState(false);
+  const [zipCodeLookupStatus, setZipCodeLookupStatus] = useState("");
   const [requestedQuantity, setRequestedQuantity] = useState(
     initialRequestedQuantity
   );
@@ -165,9 +225,6 @@ export function OrderFormExperience({
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([
     ...initialSelectedSuppliers,
   ]);
-  const [shippingPrice, setShippingPrice] = useState(
-    item?.shippingPrice?.toString() ?? "0"
-  );
   const [additionalChargeAmount, setAdditionalChargeAmount] = useState(
     item?.additionalChargeAmount?.toString() ?? "0"
   );
@@ -207,8 +264,12 @@ export function OrderFormExperience({
     ? selectedCustomer?.companyId ?? ""
     : selectedCompanyId;
   const currentStatusId = item?.currentStatusId ?? statuses[0]?.id ?? "";
-  const currentShippingMethodId =
-    item?.shippingMethodId ?? shippingMethods[0]?.id ?? "";
+  const selectedShippingMethod =
+    shippingMethods.find(
+      (shippingMethod) => shippingMethod.id === selectedShippingMethodId
+    ) ??
+    shippingMethods[0] ??
+    null;
   const orderImageAttachments = (item?.attachments ?? []).filter((attachment) =>
     isImageFile(attachment.storedFile)
   );
@@ -221,9 +282,18 @@ export function OrderFormExperience({
         (customer) => customer.id === selectedCustomerId
       )
     ) {
-      setSelectedCustomerId(currentCustomerOptions[0].id);
+      const nextCustomer = currentCustomerOptions[0];
+      setSelectedCustomerId(nextCustomer.id);
+      if (!useDifferentDeliveryAddress) {
+        setDeliveryAddress(getCustomerAddress(nextCustomer));
+      }
     }
-  }, [currentCustomerOptions, isClientView, selectedCustomerId]);
+  }, [
+    currentCustomerOptions,
+    isClientView,
+    selectedCustomerId,
+    useDifferentDeliveryAddress,
+  ]);
 
   useEffect(() => {
     if (!selectedOrderType) {
@@ -290,8 +360,7 @@ export function OrderFormExperience({
 
   const selectedProducts = selectedOrderType
     ? selectedOrderType.products.filter(
-        (product) =>
-          product.required || selectedProductIds.includes(product.id)
+        (product) => product.required || selectedProductIds.includes(product.id)
       )
     : [];
 
@@ -309,9 +378,130 @@ export function OrderFormExperience({
         Number(product.defaultUnitWeight?.toString() ?? 0)
     );
   }, 0);
-  const shippingPriceValue = Number(shippingPrice || 0);
+  const freightCalculation = calculateFreight({
+    shippingMethod: selectedShippingMethod,
+    address: deliveryAddress,
+    subtotal: itemsTotal,
+    weight: itemsWeight,
+  });
+  const shippingPriceValue = freightCalculation.amount;
   const additionalChargeValue = Number(additionalChargeAmount || 0);
   const finalTotal = itemsTotal + shippingPriceValue + additionalChargeValue;
+
+  function setDeliveryAddressField(field: keyof FreightAddress, value: string) {
+    setDeliveryAddress((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function handleCustomerChange(customerId: string) {
+    const nextCustomer =
+      customers.find((customer) => customer.id === customerId) ?? null;
+    setSelectedCustomerId(customerId);
+    if (!useDifferentDeliveryAddress) {
+      setDeliveryAddress(getCustomerAddress(nextCustomer));
+    }
+    setZipCodeLookupStatus("");
+  }
+
+  function handleUseDifferentDeliveryAddress(checked: boolean) {
+    setUseDifferentDeliveryAddress(checked);
+    setZipCodeLookupStatus("");
+
+    if (!checked) {
+      setDeliveryAddress(getCustomerAddress(selectedCustomer));
+    }
+  }
+
+  function renderHiddenDeliveryAddressFields() {
+    return (
+      <>
+        <input
+          type="hidden"
+          name="deliveryZipCode"
+          value={deliveryAddress.zipCode ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryStreet"
+          value={deliveryAddress.street ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryNumber"
+          value={deliveryAddress.number ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryComplement"
+          value={deliveryAddress.complement ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryNeighborhood"
+          value={deliveryAddress.neighborhood ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryCity"
+          value={deliveryAddress.city ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryState"
+          value={deliveryAddress.state ?? ""}
+        />
+        <input
+          type="hidden"
+          name="deliveryReference"
+          value={deliveryAddress.reference ?? ""}
+        />
+      </>
+    );
+  }
+
+  async function lookupZipCodeAddress() {
+    const zipCode = deliveryAddress.zipCode?.replace(/\D/g, "") ?? "";
+
+    if (zipCode.length !== 8) {
+      setZipCodeLookupStatus(zipCode ? "CEP inválido." : "");
+      return;
+    }
+
+    setZipCodeLookupStatus("Buscando endereço...");
+
+    try {
+      const response = await fetch(`/api/addresses/zipcode?cep=${zipCode}`);
+
+      if (!response.ok) {
+        setZipCodeLookupStatus("CEP não encontrado.");
+        return;
+      }
+
+      const address = (await response.json()) as {
+        zipCode: string;
+        street: string;
+        complement: string;
+        neighborhood: string;
+        city: string;
+        state: string;
+      };
+
+      setDeliveryAddress((current) => ({
+        ...current,
+        zipCode: address.zipCode,
+        street: address.street,
+        complement: current.complement || address.complement,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+      }));
+      setZipCodeLookupStatus("Endereço carregado pelo CEP.");
+    } catch {
+      setZipCodeLookupStatus("Não foi possível buscar o CEP.");
+    }
+  }
 
   function setProductExtraQuantity(productId: string, value: string) {
     setProductExtraQuantities((current) => ({
@@ -360,7 +550,8 @@ export function OrderFormExperience({
     const suggestedQuantity = getBaseProductQuantity(product);
     const extraQuantity = getExtraProductQuantity(product.id);
     const totalQuantity = getTotalProductQuantity(product);
-    const isSelected = product.required || selectedProductIds.includes(product.id);
+    const isSelected =
+      product.required || selectedProductIds.includes(product.id);
 
     return (
       <article key={product.id} className="order-product-card">
@@ -470,6 +661,17 @@ export function OrderFormExperience({
             </span>
           </div>
           <div className="detail-block">
+            <strong>Entrega</strong>
+            <span>{selectedShippingMethod?.name ?? "Selecione o frete"}</span>
+          </div>
+          <div className="detail-block">
+            <strong>Endereço do pedido</strong>
+            <span>
+              {formatFreightAddress(deliveryAddress) ||
+                "Sem endereço informado."}
+            </span>
+          </div>
+          <div className="detail-block">
             <strong>Peso Estimado do Pedido</strong>
             <span>{formatWeight(itemsWeight)}</span>
           </div>
@@ -525,7 +727,7 @@ export function OrderFormExperience({
         </div>
         <span className="muted">
           {mode === "create"
-            ? "Defina o que será solicitado antes de escolher cliente, entrega e composição."
+            ? "Defina o que será solicitado."
             : "Atualize os dados centrais da solicitação sem perder o histórico do pedido."}
         </span>
         <div className="form-grid">
@@ -654,7 +856,7 @@ export function OrderFormExperience({
               name="customerId"
               required
               value={selectedCustomerId}
-              onChange={(event) => setSelectedCustomerId(event.target.value)}
+              onChange={(event) => handleCustomerChange(event.target.value)}
             >
               <option value="">Selecione</option>
               {currentCustomerOptions.map((customer) => (
@@ -664,15 +866,129 @@ export function OrderFormExperience({
               ))}
             </select>
           </label>
-          <label className="field order-form-wide">
-            <span>Local / endereço de entrega</span>
-            <textarea
-              name="deliveryAddress"
-              rows={4}
-              defaultValue={item?.deliveryAddress ?? ""}
-              required
+          <label className="field-checkbox order-form-wide">
+            <input
+              type="checkbox"
+              name="useDifferentDeliveryAddress"
+              checked={useDifferentDeliveryAddress}
+              onChange={(event) =>
+                handleUseDifferentDeliveryAddress(event.target.checked)
+              }
             />
+            <span>Usar outro endereço de entrega</span>
           </label>
+          {useDifferentDeliveryAddress ? (
+            <>
+              <label className="field">
+                <span>CEP</span>
+                <input
+                  name="deliveryZipCode"
+                  value={deliveryAddress.zipCode ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField("zipCode", event.target.value)
+                  }
+                  onBlur={lookupZipCodeAddress}
+                  required={freightCalculation.requiresAddress}
+                />
+                {zipCodeLookupStatus ? (
+                  <span className="muted">{zipCodeLookupStatus}</span>
+                ) : null}
+              </label>
+              <label className="field">
+                <span>Logradouro</span>
+                <input
+                  name="deliveryStreet"
+                  value={deliveryAddress.street ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField("street", event.target.value)
+                  }
+                  required={freightCalculation.requiresAddress}
+                />
+              </label>
+              <label className="field">
+                <span>Número</span>
+                <input
+                  name="deliveryNumber"
+                  value={deliveryAddress.number ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField("number", event.target.value)
+                  }
+                  required={freightCalculation.requiresAddress}
+                />
+              </label>
+              <label className="field">
+                <span>Complemento</span>
+                <input
+                  name="deliveryComplement"
+                  value={deliveryAddress.complement ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField("complement", event.target.value)
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Bairro</span>
+                <input
+                  name="deliveryNeighborhood"
+                  value={deliveryAddress.neighborhood ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField(
+                      "neighborhood",
+                      event.target.value
+                    )
+                  }
+                  required={freightCalculation.requiresAddress}
+                />
+              </label>
+              <label className="field">
+                <span>Cidade</span>
+                <input
+                  name="deliveryCity"
+                  value={deliveryAddress.city ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField("city", event.target.value)
+                  }
+                  required={freightCalculation.requiresAddress}
+                />
+              </label>
+              <label className="field">
+                <span>Estado</span>
+                <input
+                  name="deliveryState"
+                  maxLength={2}
+                  value={deliveryAddress.state ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField(
+                      "state",
+                      event.target.value.toUpperCase()
+                    )
+                  }
+                  required={freightCalculation.requiresAddress}
+                />
+              </label>
+              <label className="field order-form-wide">
+                <span>Referência</span>
+                <input
+                  name="deliveryReference"
+                  value={deliveryAddress.reference ?? ""}
+                  onChange={(event) =>
+                    setDeliveryAddressField("reference", event.target.value)
+                  }
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              {renderHiddenDeliveryAddressFields()}
+              <div className="detail-block order-form-wide">
+                <strong>Endereço do cliente</strong>
+                <span>
+                  {formatFreightAddress(deliveryAddress) ||
+                    "Cliente sem endereço cadastrado."}
+                </span>
+              </div>
+            </>
+          )}
         </div>
         {mode === "create" ? (
           <div className="action-toolbar">
@@ -718,7 +1034,8 @@ export function OrderFormExperience({
           <div className="detail-block">
             <strong>Produtos incluídos</strong>
             <span>
-              {selectedProducts.length} de {selectedOrderType?.products.length ?? 0}
+              {selectedProducts.length} de{" "}
+              {selectedOrderType?.products.length ?? 0}
             </span>
           </div>
           <div className="detail-block">
@@ -813,38 +1130,24 @@ export function OrderFormExperience({
                 {isAdminView ? "Prazo e entrega" : "Forma de entrega"}
               </p>
               <div className="form-grid">
-                {isAdminView ? (
-                  <label className="field">
-                    <span>Como será a entrega</span>
-                    <select
-                      name="shippingMethodId"
-                      required
-                      defaultValue={currentShippingMethodId}
-                    >
-                      <option value="">Selecione</option>
-                      {shippingMethods.map((shippingMethod) => (
-                        <option
-                          key={shippingMethod.id}
-                          value={shippingMethod.id}
-                        >
-                          {shippingMethod.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <>
-                    <input
-                      type="hidden"
-                      name="shippingMethodId"
-                      value={currentShippingMethodId}
-                    />
-                    <div className="detail-block">
-                      <strong>Entrega</strong>
-                      <span>Será definida pela equipe administrativa.</span>
-                    </div>
-                  </>
-                )}
+                <label className="field">
+                  <span>Como será a entrega</span>
+                  <select
+                    name="shippingMethodId"
+                    required
+                    value={selectedShippingMethodId}
+                    onChange={(event) =>
+                      setSelectedShippingMethodId(event.target.value)
+                    }
+                  >
+                    <option value="">Selecione</option>
+                    {shippingMethods.map((shippingMethod) => (
+                      <option key={shippingMethod.id} value={shippingMethod.id}>
+                        {shippingMethod.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 {isAdminView ? (
                   <label className="field">
                     <span>Prazo previsto</span>
@@ -861,25 +1164,15 @@ export function OrderFormExperience({
                     value={formatInputDate(item?.expectedAt)}
                   />
                 )}
-                {isAdminView ? (
-                  <label className="field">
-                    <span>Valor da entrega / frete</span>
-                    <input
-                      name="shippingPrice"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={shippingPrice}
-                      onChange={(event) => setShippingPrice(event.target.value)}
-                    />
-                  </label>
-                ) : (
-                  <input
-                    type="hidden"
-                    name="shippingPrice"
-                    value={shippingPrice}
-                  />
-                )}
+                <input
+                  type="hidden"
+                  name="shippingPrice"
+                  value={shippingPriceValue.toFixed(2)}
+                />
+                <div className="detail-block">
+                  <strong>Frete calculado</strong>
+                  <span>{formatCurrency(shippingPriceValue)}</span>
+                </div>
               </div>
             </div>
 
