@@ -13,6 +13,11 @@ enum UserProfileType {
   EXECUTOR
 }
 
+enum UserThemePreference {
+  LIGHT
+  DARK
+}
+
 enum SupplierType {
   SUPPLIER
   EXECUTOR
@@ -136,6 +141,7 @@ model User {
   email            String                @unique
   password         String
   active           Boolean               @default(true)
+  themePreference  UserThemePreference    @default(LIGHT)
   profiles         UserProfile[]
   customerAccesses UserCustomerAccess[]
   supplierAccesses UserSupplierAccess[]

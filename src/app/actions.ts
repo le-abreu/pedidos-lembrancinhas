@@ -21,6 +21,7 @@ import {
 } from "@/lib/freight-calculator";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { normalizeThemePreference } from "@/lib/theme";
 import {
   canAccessSupplier,
   getAccessibleCompanyIds,
@@ -398,6 +399,27 @@ export async function updateCurrentUserPassword(formData: FormData) {
   );
 
   revalidatePath("/account");
+  redirect(redirectPath);
+}
+
+export async function updateCurrentUserTheme(formData: FormData) {
+  const user = await requireCurrentUser();
+  const themePreference = normalizeThemePreference(formData.get("themePreference"));
+
+  await (prisma.user as any).update({
+    where: { id: user.id },
+    data: {
+      themePreference,
+    },
+  });
+
+  const redirectPath = withSuccessMessage(
+    getRedirectPath(formData, "/account"),
+    "Tema do sistema atualizado com sucesso.",
+  );
+
+  revalidatePath("/account");
+  revalidatePath("/");
   redirect(redirectPath);
 }
 

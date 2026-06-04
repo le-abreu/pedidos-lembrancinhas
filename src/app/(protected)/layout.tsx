@@ -19,6 +19,7 @@ export default async function ProtectedLayout({
     <AppShell
       userName={user.name}
       avatarFileId={user.avatarStoredFile?.id ?? null}
+      themePreference={user.themePreference ?? "LIGHT"}
       profileLabels={profileTypes}
       navigationItems={visibleNavigation.map(({ href, label }) => ({ href, label }))}
     >
