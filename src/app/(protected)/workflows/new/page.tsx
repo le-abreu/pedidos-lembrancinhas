@@ -6,11 +6,9 @@ import { FormCard } from "@/components/form-card";
 import { PageHeader } from "@/components/page-header";
 import { WorkflowForm } from "@/components/admin-forms";
 import { requireAnyProfile } from "@/lib/auth";
-import { getWorkflowFormData } from "@/server/services/admin-service";
 
 export default async function NewWorkflowPage() {
   await requireAnyProfile([UserProfileType.ADMIN]);
-  const { orderTypes } = await getWorkflowFormData();
 
   return (
     <div className="page-stack">
@@ -23,15 +21,13 @@ export default async function NewWorkflowPage() {
           </Link>
         }
       />
-      <FormCard title="Cadastro" description="Associe o workflow ao tipo de pedido correto.">
+      <FormCard title="Cadastro" description="Cadastre um workflow reutilizável para os tipos de pedido.">
         <WorkflowForm
           action={createWorkflow}
           submitLabel="Salvar workflow"
           redirectPath="/workflows"
-          orderTypes={orderTypes}
         />
       </FormCard>
     </div>
   );
 }
-

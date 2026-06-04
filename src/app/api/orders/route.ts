@@ -47,19 +47,28 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const [workflow, shippingMethod] = await Promise.all([
-    prisma.workflow.findUnique({
-      where: { orderTypeId: body.orderTypeId },
+  const [orderType, shippingMethod] = await Promise.all([
+    (prisma.orderType as any).findUnique({
+      where: { id: body.orderTypeId },
+      include: { workflow: true },
     }),
     (prisma as any).shippingMethod.findUnique({
       where: { id: body.shippingMethodId },
       select: { id: true, name: true, calculationType: true, fixedPrice: true },
     }),
   ]);
+  const workflow = orderType?.workflow;
 
   if (!workflow) {
     return NextResponse.json(
       { message: "Tipo de pedido sem workflow configurado." },
+      { status: 400 },
+    );
+  }
+
+  if ((body.requestedQuantity ?? 1) < orderType.minimumQuantity) {
+    return NextResponse.json(
+      { message: `Quantidade mínima para este tipo de pedido: ${orderType.minimumQuantity}.` },
       { status: 400 },
     );
   }

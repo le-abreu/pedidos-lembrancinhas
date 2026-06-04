@@ -31,6 +31,7 @@ type OrderTypeProduct = {
 type OrderTypeOption = {
   id: string;
   name: string;
+  minimumQuantity: number;
   products: OrderTypeProduct[];
 };
 
@@ -162,7 +163,11 @@ export function OrderFormExperience({
   suppliers,
 }: Props) {
   const initialOrderTypeId = item?.orderTypeId ?? orderTypes[0]?.id ?? "";
-  const initialRequestedQuantity = String(item?.requestedQuantity ?? 1);
+  const initialOrderType =
+    orderTypes.find((orderType) => orderType.id === initialOrderTypeId) ??
+    orderTypes[0] ??
+    null;
+  const initialRequestedQuantity = String(item?.requestedQuantity ?? initialOrderType?.minimumQuantity ?? 1);
   const initialCustomerId = item?.customerId ?? customers[0]?.id ?? "";
   const initialCustomer =
     customers.find((customer) => customer.id === initialCustomerId) ?? null;
@@ -252,6 +257,7 @@ export function OrderFormExperience({
     orderTypes.find((orderType) => orderType.id === selectedOrderTypeId) ??
     orderTypes[0] ??
     null;
+  const selectedMinimumQuantity = selectedOrderType?.minimumQuantity ?? 1;
   const currentCustomerOptions = isClientView
     ? customers
     : customers.filter(
@@ -299,6 +305,13 @@ export function OrderFormExperience({
     if (!selectedOrderType) {
       return;
     }
+
+    setRequestedQuantity((current) => {
+      const parsed = Number(current || "0");
+      return parsed < selectedOrderType.minimumQuantity
+        ? String(selectedOrderType.minimumQuantity)
+        : current;
+    });
 
     const nextSelectedProducts =
       item?.items?.length && selectedOrderType.id === item.orderTypeId
@@ -761,11 +774,12 @@ export function OrderFormExperience({
             <input
               name="requestedQuantity"
               type="number"
-              min="1"
+              min={selectedMinimumQuantity}
               required
               value={requestedQuantity}
               onChange={(event) => setRequestedQuantity(event.target.value)}
             />
+            <span className="field-hint">Mínimo deste tipo: {selectedMinimumQuantity}</span>
           </label>
           <label className="field">
             <span>Data do pedido</span>

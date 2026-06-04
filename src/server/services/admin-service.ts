@@ -20,9 +20,7 @@ type UserFilters = BaseListFilters & {
   profile?: UserProfileType;
 };
 
-type WorkflowFilters = BaseListFilters & {
-  orderTypeId?: string;
-};
+type WorkflowFilters = BaseListFilters;
 
 function searchContains(search?: string) {
   return search
@@ -312,16 +310,12 @@ export async function getOrderTypesList(filters: BaseListFilters) {
 export async function getWorkflowsList(filters: WorkflowFilters) {
   const where: Prisma.WorkflowWhereInput = {
     active: filters.active,
-    orderTypeId: filters.orderTypeId || undefined,
     OR: filters.search
       ? [{ name: searchContains(filters.search) }, { description: searchContains(filters.search) }]
       : undefined,
   };
 
-  const [total, orderTypes] = await Promise.all([
-    prisma.workflow.count({ where }),
-    prisma.orderType.findMany({ orderBy: { name: "asc" } }),
-  ]);
+  const total = await prisma.workflow.count({ where });
   const pagination = getPagination(filters.page, total, pageSize);
   const items = await prisma.workflow.findMany({
     where,
@@ -329,7 +323,7 @@ export async function getWorkflowsList(filters: WorkflowFilters) {
     skip: pagination.skip,
     take: pagination.take,
     include: {
-      orderType: true,
+      orderTypes: true,
       phases: {
         orderBy: { order: "asc" },
       },
@@ -337,12 +331,13 @@ export async function getWorkflowsList(filters: WorkflowFilters) {
         select: {
           orders: true,
           phases: true,
+          orderTypes: true,
         },
       },
     },
   });
 
-  return { items, pagination, orderTypes };
+  return { items, pagination };
 }
 
 export async function getCompanyFormData(id?: string) {
@@ -439,18 +434,21 @@ export async function getStatusFormData(id?: string) {
 }
 
 export async function getOrderTypeFormData(id?: string) {
-  const item = id
-    ? await (prisma.orderType as any).findUnique({
-        where: { id },
-        include: {
-          fileStoredFile: true,
-          products: { orderBy: { name: "asc" }, include: { fileStoredFile: true } },
-          workflow: true,
-        },
-      })
-    : null;
+  const [item, workflows] = await Promise.all([
+    id
+      ? (prisma.orderType as any).findUnique({
+          where: { id },
+          include: {
+            fileStoredFile: true,
+            products: { orderBy: { name: "asc" }, include: { fileStoredFile: true } },
+            workflow: true,
+          },
+        })
+      : Promise.resolve(null),
+    prisma.workflow.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
-  return { item };
+  return { item, workflows };
 }
 
 export async function getShippingMethodFormData(id?: string) {
@@ -458,7 +456,7 @@ export async function getShippingMethodFormData(id?: string) {
 }
 
 export async function getWorkflowFormData(id?: string) {
-  const [item, statuses, orderTypes, suppliers] = await Promise.all([
+  const [item, statuses, suppliers] = await Promise.all([
     id
       ? prisma.workflow.findUnique({
           where: { id },
@@ -471,9 +469,8 @@ export async function getWorkflowFormData(id?: string) {
         })
       : Promise.resolve(null),
     prisma.orderStatus.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
-    prisma.orderType.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
-  return { item, statuses, orderTypes, suppliers };
+  return { item, statuses, suppliers };
 }

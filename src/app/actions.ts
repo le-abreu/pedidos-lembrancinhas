@@ -34,6 +34,18 @@ import {
   uploadStoredFile,
   uploadUserAvatar,
 } from "@/server/services/file-storage-service";
+
+type OrderTypeWorkflowForCreation = {
+  minimumQuantity: number;
+  workflow: {
+    id: string;
+    phases: Array<{
+      id: string;
+      requiresSupplier: boolean;
+      responsibleSupplierId: string | null;
+    }>;
+  } | null;
+} | null;
 import {
   replaceUserCustomerAccesses,
   replaceUserSupplierAccesses,
@@ -852,6 +864,8 @@ export async function createOrderType(formData: FormData) {
     data: {
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
+      workflowId: asOptionalString(formData.get("workflowId")),
+      minimumQuantity: asRequiredInt(formData.get("minimumQuantity"), "Quantidade mínima"),
       fileStoredFileId: storedFile?.id ?? null,
       active: true,
     },
@@ -880,6 +894,8 @@ export async function updateOrderType(formData: FormData) {
     data: {
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
+      workflowId: asOptionalString(formData.get("workflowId")),
+      minimumQuantity: asRequiredInt(formData.get("minimumQuantity"), "Quantidade mínima"),
       ...(storedFile ? { fileStoredFileId: storedFile.id } : {}),
     },
   });
@@ -1008,7 +1024,6 @@ export async function toggleOrderTypeProductActive(formData: FormData) {
 export async function createWorkflow(formData: FormData) {
   await prisma.workflow.create({
     data: {
-      orderTypeId: asString(formData.get("orderTypeId")),
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
       active: true,
@@ -1028,7 +1043,6 @@ export async function updateWorkflow(formData: FormData) {
   await prisma.workflow.update({
     where: { id },
     data: {
-      orderTypeId: asString(formData.get("orderTypeId")),
       name: asString(formData.get("name")),
       description: asOptionalString(formData.get("description")),
     },
@@ -1142,18 +1156,27 @@ export async function createOrder(formData: FormData) {
   const additionalChargeAmount = asDecimal(formData.get("additionalChargeAmount")) ?? "0";
   const additionalChargeReason = asOptionalString(formData.get("additionalChargeReason"));
   const orderPhotoFiles = getSelectedUploadFiles(formData, "orderPhoto");
-  const workflow = await prisma.workflow.findUnique({
-    where: { orderTypeId },
+  const orderType = (await (prisma.orderType as any).findUnique({
+    where: { id: orderTypeId },
     include: {
-      phases: {
-        where: { active: true },
-        orderBy: { order: "asc" },
+      workflow: {
+        include: {
+          phases: {
+            where: { active: true },
+            orderBy: { order: "asc" },
+          },
+        },
       },
     },
-  });
+  })) as OrderTypeWorkflowForCreation;
+  const workflow = orderType?.workflow;
 
   if (!workflow) {
     throw new Error("Tipo de pedido sem workflow configurado.");
+  }
+
+  if (requestedQuantity < orderType.minimumQuantity) {
+    throw new Error(`Quantidade mínima para este tipo de pedido: ${orderType.minimumQuantity}.`);
   }
 
   const currentStatusId =

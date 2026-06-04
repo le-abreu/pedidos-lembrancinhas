@@ -6,9 +6,11 @@ import { OrderTypeForm } from "@/components/admin-forms";
 import { FormCard } from "@/components/form-card";
 import { PageHeader } from "@/components/page-header";
 import { requireAnyProfile } from "@/lib/auth";
+import { getOrderTypeFormData } from "@/server/services/admin-service";
 
 export default async function NewOrderTypePage() {
   await requireAnyProfile([UserProfileType.ADMIN]);
+  const { workflows } = await getOrderTypeFormData();
 
   return (
     <div className="page-stack">
@@ -22,9 +24,13 @@ export default async function NewOrderTypePage() {
         }
       />
       <FormCard title="Cadastro" description="Defina a categoria abstrata do pedido.">
-        <OrderTypeForm action={createOrderType} submitLabel="Salvar tipo" redirectPath="/order-types" />
+        <OrderTypeForm
+          action={createOrderType}
+          submitLabel="Salvar tipo"
+          redirectPath="/order-types"
+          workflows={workflows}
+        />
       </FormCard>
     </div>
   );
 }
-

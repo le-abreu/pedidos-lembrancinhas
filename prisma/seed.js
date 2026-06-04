@@ -195,6 +195,7 @@ async function main() {
     data: {
       name: "Lembrancinha de aniversário",
       description: "Pedido padrão com personalização, produção e entrega.",
+      minimumQuantity: 1,
       active: true,
     },
   });
@@ -264,11 +265,15 @@ async function main() {
 
   const workflow = await prisma.workflow.create({
     data: {
-      orderTypeId: orderType.id,
       name: "Workflow aniversário padrão",
       description: "Fluxo base para aprovar arte, produzir, montar e entregar.",
       active: true,
     },
+  });
+
+  await prisma.orderType.update({
+    where: { id: orderType.id },
+    data: { workflowId: workflow.id },
   });
 
   const [phase1, phase2, phase3, phase4, phase5] = await prisma.$transaction([

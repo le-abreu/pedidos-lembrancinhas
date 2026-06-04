@@ -25,7 +25,7 @@ type PageProps = {
 
 export default async function EditOrderTypePage({ params, searchParams }: PageProps) {
   await requireAnyProfile([UserProfileType.ADMIN]);
-  const { item } = await getOrderTypeFormData(params.id);
+  const { item, workflows } = await getOrderTypeFormData(params.id);
   const successMessage = typeof searchParams?.success === "string" ? searchParams.success : "";
 
   if (!item) {
@@ -74,6 +74,7 @@ export default async function EditOrderTypePage({ params, searchParams }: PagePr
           submitLabel="Salvar alterações"
           redirectPath={`/order-types/${item.id}/edit`}
           item={item}
+          workflows={workflows}
         />
       </FormCard>
 

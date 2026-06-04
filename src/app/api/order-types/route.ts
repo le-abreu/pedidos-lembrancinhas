@@ -16,10 +16,11 @@ export async function POST(request: Request) {
     data: {
       name: body.name,
       description: body.description ?? null,
+      workflowId: body.workflowId ?? null,
+      minimumQuantity: body.minimumQuantity ?? 1,
       active: body.active ?? true,
     },
   });
 
   return NextResponse.json(orderType, { status: 201 });
 }
-

@@ -343,16 +343,20 @@ export function OrderTypeForm({
   submitLabel,
   redirectPath,
   item,
+  workflows,
 }: BaseFormProps & {
   item?: {
     id: string;
+    workflowId: string | null;
     name: string;
     description: string | null;
+    minimumQuantity: number;
     fileStoredFile?: {
       id: string;
       originalName: string;
     } | null;
   } | null;
+  workflows?: Array<{ id: string; name: string }>;
 }) {
   const formId = item ? `order-type-form-${item.id}` : "order-type-form-new";
 
@@ -369,6 +373,27 @@ export function OrderTypeForm({
         <label className="field">
           <span>Nome</span>
           <input name="name" required defaultValue={item?.name ?? ""} />
+        </label>
+        <label className="field">
+          <span>Workflow usado</span>
+          <select name="workflowId" defaultValue={item?.workflowId ?? ""}>
+            <option value="">Sem workflow</option>
+            {(workflows ?? []).map((workflow) => (
+              <option key={workflow.id} value={workflow.id}>
+                {workflow.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Quantidade mínima</span>
+          <input
+            name="minimumQuantity"
+            type="number"
+            min="1"
+            required
+            defaultValue={item?.minimumQuantity ?? 1}
+          />
         </label>
         <label className="field order-type-description-field">
           <span>Descrição</span>
@@ -504,35 +529,17 @@ export function WorkflowForm({
   submitLabel,
   redirectPath,
   item,
-  orderTypes,
 }: BaseFormProps & {
   item?: {
     id: string;
-    orderTypeId: string;
     name: string;
     description: string | null;
   } | null;
-  orderTypes: Array<{ id: string; name: string }>;
 }) {
   return (
     <form action={action} className="form-grid">
       <input type="hidden" name="redirectPath" value={redirectPath} />
       {item ? <input type="hidden" name="id" value={item.id} /> : null}
-      <label className="field">
-        <span>Tipo de pedido</span>
-        <select
-          name="orderTypeId"
-          required
-          defaultValue={item?.orderTypeId ?? ""}
-        >
-          <option value="">Selecione</option>
-          {orderTypes.map((orderType) => (
-            <option key={orderType.id} value={orderType.id}>
-              {orderType.name}
-            </option>
-          ))}
-        </select>
-      </label>
       <label className="field">
         <span>Nome</span>
         <input name="name" required defaultValue={item?.name ?? ""} />

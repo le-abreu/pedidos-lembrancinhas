@@ -22,9 +22,8 @@ export default async function WorkflowsPage({ searchParams }: PageProps) {
   const page = parsePage(searchParams?.page);
   const search = parseSearch(searchParams?.search);
   const active = parseActiveFilter(searchParams?.active);
-  const orderTypeId = typeof searchParams?.orderTypeId === "string" ? searchParams.orderTypeId : "";
   const successMessage = typeof searchParams?.success === "string" ? searchParams.success : "";
-  const { items, pagination, orderTypes } = await getWorkflowsList({ page, search, active, orderTypeId });
+  const { items, pagination } = await getWorkflowsList({ page, search, active });
 
   return (
     <div className="page-stack">
@@ -38,23 +37,12 @@ export default async function WorkflowsPage({ searchParams }: PageProps) {
         }
       />
       {successMessage ? <FeedbackBanner message={successMessage} /> : null}
-      <FormCard title="Pesquisa" description="Filtre por tipo, situação e texto livre.">
+      <FormCard title="Pesquisa" description="Filtre por situação e texto livre.">
         <form className="search-form">
           <div className="filters-grid three">
             <label className="field">
               <span>Busca</span>
               <input name="search" defaultValue={search} placeholder="Nome ou descrição..." />
-            </label>
-            <label className="field">
-              <span>Tipo de pedido</span>
-              <select name="orderTypeId" defaultValue={orderTypeId}>
-                <option value="">Todos</option>
-                {orderTypes.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
             </label>
             <label className="field">
               <span>Situação</span>
@@ -74,7 +62,7 @@ export default async function WorkflowsPage({ searchParams }: PageProps) {
       <DataTable
         columns={[
           { key: "nome", header: "Workflow", render: (item) => item.name },
-          { key: "tipo", header: "Tipo", render: (item) => item.orderType.name },
+          { key: "tipos", header: "Tipos usando", render: (item) => item._count.orderTypes },
           { key: "fases", header: "Fases", render: (item) => item._count.phases },
           { key: "pedidos", header: "Pedidos", render: (item) => item._count.orders },
           {
@@ -108,7 +96,6 @@ export default async function WorkflowsPage({ searchParams }: PageProps) {
         pathname="/workflows"
         searchParams={{
           search,
-          orderTypeId: orderTypeId || undefined,
           active: active === undefined ? undefined : String(active),
         }}
       />

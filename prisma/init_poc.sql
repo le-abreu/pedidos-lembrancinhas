@@ -51,9 +51,9 @@ VALUES
   ('ship_poc_correios', 'Correios', 'Envio postal com rastreio.', 'FIXED'::"FreightCalculationType", 45, true, NOW(), NOW()),
   ('ship_poc_transportadora', 'Transportadora', 'Entrega por transportadora terceirizada.', 'FIXED'::"FreightCalculationType", 80, true, NOW(), NOW());
 
-INSERT INTO "OrderType" ("id", "fileStoredFileId", "name", "description", "active", "createdAt", "updatedAt")
+INSERT INTO "OrderType" ("id", "fileStoredFileId", "name", "description", "minimumQuantity", "active", "createdAt", "updatedAt")
 VALUES
-  ('otype_poc_aniversario', NULL, 'Lembrancinha de aniversario', 'Pedido padrao com personalizacao, producao e entrega.', true, NOW(), NOW());
+  ('otype_poc_aniversario', NULL, 'Lembrancinha de aniversario', 'Pedido padrao com personalizacao, producao e entrega.', 1, true, NOW(), NOW());
 
 INSERT INTO "OrderTypeProduct" ("id", "orderTypeId", "fileStoredFileId", "name", "description", "defaultQuantity", "defaultUnitPrice", "defaultUnitWeight", "required", "active", "createdAt", "updatedAt")
 VALUES
@@ -63,9 +63,13 @@ VALUES
   ('prod_poc_chocolate', 'otype_poc_aniversario', NULL, 'Chocolate', 'Doce embalado individualmente.', 1, 2.80, 0.030, false, true, NOW(), NOW()),
   ('prod_poc_sacola', 'otype_poc_aniversario', NULL, 'Sacola', 'Sacola final para entrega do kit.', 1, 1.90, 0.040, false, true, NOW(), NOW());
 
-INSERT INTO "Workflow" ("id", "orderTypeId", "name", "description", "active", "createdAt", "updatedAt")
+INSERT INTO "Workflow" ("id", "name", "description", "active", "createdAt", "updatedAt")
 VALUES
-  ('workflow_poc_aniversario', 'otype_poc_aniversario', 'Workflow aniversario padrao', 'Fluxo base para aprovar arte, produzir, montar e entregar.', true, NOW(), NOW());
+  ('workflow_poc_aniversario', 'Workflow aniversario padrao', 'Fluxo base para aprovar arte, produzir, montar e entregar.', true, NOW(), NOW());
+
+UPDATE "OrderType"
+SET "workflowId" = 'workflow_poc_aniversario'
+WHERE "id" = 'otype_poc_aniversario';
 
 INSERT INTO "WorkflowPhase" ("id", "workflowId", "responsibleSupplierId", "name", "description", "order", "guidanceMessage", "allowsFileUpload", "expectedFileType", "requiresSupplier", "changesOrderStatus", "targetStatusId", "allowsInvoice", "requiresComment", "active", "createdAt", "updatedAt")
 SELECT * FROM (

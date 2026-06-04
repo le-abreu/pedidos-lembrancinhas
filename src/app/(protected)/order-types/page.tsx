@@ -63,6 +63,7 @@ export default async function OrderTypesPage({ searchParams }: PageProps) {
         columns={[
           { key: "nome", header: "Tipo", render: (item) => item.name },
           { key: "descricao", header: "Descrição", render: (item) => item.description ?? "-" },
+          { key: "minimo", header: "Qtd mínima", render: (item) => item.minimumQuantity },
           { key: "produtos", header: "Produtos", render: (item) => item._count.products },
           {
             key: "workflow",

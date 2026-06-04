@@ -849,6 +849,14 @@ p {
   background: var(--surface-strong);
 }
 
+.field .field-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .field-checkbox {
   grid-auto-flow: column;
   justify-content: start;

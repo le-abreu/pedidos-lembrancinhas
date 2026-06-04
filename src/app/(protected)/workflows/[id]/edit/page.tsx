@@ -24,7 +24,7 @@ type PageProps = {
 
 export default async function EditWorkflowPage({ params, searchParams }: PageProps) {
   await requireAnyProfile([UserProfileType.ADMIN]);
-  const { item, statuses, orderTypes, suppliers } = await getWorkflowFormData(params.id);
+  const { item, statuses, suppliers } = await getWorkflowFormData(params.id);
   const successMessage = typeof searchParams?.success === "string" ? searchParams.success : "";
 
   if (!item) {
@@ -49,7 +49,6 @@ export default async function EditWorkflowPage({ params, searchParams }: PagePro
           submitLabel="Salvar alterações"
           redirectPath={`/workflows/${item.id}/edit`}
           item={item}
-          orderTypes={orderTypes}
         />
       </FormCard>
       <section className="page-stack">

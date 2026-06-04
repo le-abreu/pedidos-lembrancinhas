@@ -43,7 +43,7 @@ export async function getCatalogSnapshot() {
     prisma.workflow.findMany({
       orderBy: { name: "asc" },
       include: {
-        orderType: true,
+        orderTypes: true,
         phases: {
           orderBy: { order: "asc" },
           include: { targetStatus: true },
@@ -62,4 +62,3 @@ export async function getCatalogSnapshot() {
     workflows,
   };
 }
-

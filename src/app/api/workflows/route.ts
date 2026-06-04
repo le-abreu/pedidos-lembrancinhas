@@ -6,7 +6,7 @@ export async function GET() {
   const workflows = await prisma.workflow.findMany({
     orderBy: { name: "asc" },
     include: {
-      orderType: true,
+      orderTypes: true,
       phases: {
         orderBy: { order: "asc" },
         include: { targetStatus: true },
@@ -20,7 +20,6 @@ export async function POST(request: Request) {
   const body = await request.json();
   const workflow = await prisma.workflow.create({
     data: {
-      orderTypeId: body.orderTypeId,
       name: body.name,
       description: body.description ?? null,
       active: body.active ?? true,
@@ -29,4 +28,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json(workflow, { status: 201 });
 }
-
