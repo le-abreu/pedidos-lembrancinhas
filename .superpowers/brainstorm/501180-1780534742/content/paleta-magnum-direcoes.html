@@ -1,0 +1,107 @@
+<h2>Direção visual para o sistema</h2>
+<p class="subtitle">A referência do cliente traz vermelho forte, carvão/preto, branco e cinza. Clique na opção que mais combina com o sistema.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f5f5f5;border:1px solid #dedede;border-radius:12px;overflow:hidden;height:220px;font-family:Arial,sans-serif;color:#202020">
+        <div style="display:flex;height:100%">
+          <div style="width:31%;background:#211f1f;color:white;padding:18px;display:grid;align-content:space-between">
+            <div>
+              <div style="color:#ef2229;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em">Operacional</div>
+              <div style="font-size:24px;font-weight:800;margin-top:10px">Pedidos</div>
+            </div>
+            <div style="display:grid;gap:8px">
+              <div style="background:#ef2229;color:white;border-radius:8px;padding:10px;font-weight:700">Pedidos</div>
+              <div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px">Clientes</div>
+            </div>
+          </div>
+          <div style="flex:1;padding:18px;display:grid;gap:12px;align-content:start">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="color:#ef2229;font-size:11px;font-weight:800;text-transform:uppercase">Painel</div>
+                <div style="font-size:22px;font-weight:800">Visão geral</div>
+              </div>
+              <div style="background:#ef2229;color:white;border-radius:8px;padding:10px 14px;font-weight:800">Novo pedido</div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              <div style="background:white;border:1px solid #e1e1e1;border-radius:8px;padding:14px"><strong>128</strong><br><span style="color:#676a6d">Pedidos</span></div>
+              <div style="background:white;border:1px solid #e1e1e1;border-radius:8px;padding:14px"><strong>34</strong><br><span style="color:#676a6d">Produção</span></div>
+              <div style="background:white;border:1px solid #e1e1e1;border-radius:8px;padding:14px"><strong>12</strong><br><span style="color:#676a6d">Atrasos</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Corporativo claro</h3>
+      <p>Base clara, sidebar carvão e vermelho como ação principal. Mais seguro para uso diário e leitura.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#eeeeee;border:1px solid #d6d6d6;border-radius:12px;overflow:hidden;height:220px;font-family:Arial,sans-serif;color:#202020">
+        <div style="height:54px;background:#ef2229;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 18px">
+          <strong>Pedidos de Lembrancinhas</strong>
+          <span style="background:#211f1f;border-radius:8px;padding:8px 12px">Sair</span>
+        </div>
+        <div style="display:flex;height:calc(100% - 54px)">
+          <div style="width:28%;background:#6b6e72;color:white;padding:16px;display:grid;gap:8px;align-content:start">
+            <div style="background:#211f1f;border-radius:8px;padding:10px;font-weight:700">Dashboard</div>
+            <div style="background:rgba(255,255,255,.12);border-radius:8px;padding:10px">Pedidos</div>
+            <div style="background:rgba(255,255,255,.12);border-radius:8px;padding:10px">Financeiro</div>
+          </div>
+          <div style="flex:1;padding:16px;display:grid;gap:10px;align-content:start">
+            <div style="background:white;border-left:5px solid #ef2229;border-radius:8px;padding:14px"><strong>Operação em destaque</strong><br><span style="color:#676a6d">Alertas e ações ficam muito evidentes.</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div style="background:white;border-radius:8px;padding:14px;border:1px solid #ddd">Fila</div>
+              <div style="background:white;border-radius:8px;padding:14px;border:1px solid #ddd">Entrega</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Vermelho protagonista</h3>
+      <p>Topo vermelho e áreas cinza. Mais fiel à peça de marca, porém mais agressivo visualmente.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1f1f20;border:1px solid #363636;border-radius:12px;overflow:hidden;height:220px;font-family:Arial,sans-serif;color:white">
+        <div style="display:flex;height:100%">
+          <div style="width:31%;background:#171717;padding:18px;display:grid;align-content:space-between">
+            <div>
+              <div style="color:#ef2229;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em">Operacional</div>
+              <div style="font-size:24px;font-weight:800;margin-top:10px">Pedidos</div>
+            </div>
+            <div style="display:grid;gap:8px">
+              <div style="background:#ef2229;border-radius:8px;padding:10px;font-weight:700">Pedidos</div>
+              <div style="background:#2b2b2d;border-radius:8px;padding:10px;color:#d8d8d8">Clientes</div>
+            </div>
+          </div>
+          <div style="flex:1;padding:18px;display:grid;gap:12px;align-content:start">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="color:#ef2229;font-size:11px;font-weight:800;text-transform:uppercase">Painel</div>
+                <div style="font-size:22px;font-weight:800">Visão geral</div>
+              </div>
+              <div style="background:#ef2229;border-radius:8px;padding:10px 14px;font-weight:800">Novo pedido</div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              <div style="background:#2b2b2d;border:1px solid #3d3d40;border-radius:8px;padding:14px"><strong>128</strong><br><span style="color:#b9b9b9">Pedidos</span></div>
+              <div style="background:#2b2b2d;border:1px solid #3d3d40;border-radius:8px;padding:14px"><strong>34</strong><br><span style="color:#b9b9b9">Produção</span></div>
+              <div style="background:#2b2b2d;border:1px solid #3d3d40;border-radius:8px;padding:14px"><strong>12</strong><br><span style="color:#b9b9b9">Atrasos</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Dark operacional</h3>
+      <p>Tema escuro com vermelho de ação. Forte e premium, mas exige revisar contraste em todos os formulários.</p>
+    </div>
+  </div>
+</div>
