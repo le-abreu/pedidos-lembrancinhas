@@ -3,12 +3,19 @@ import { redirect } from "next/navigation";
 import { UserProfileType } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { createSessionToken, parseSessionToken } from "@/lib/auth/session-token";
 import { getCustomerAccessMap, getSupplierAccessMap } from "@/server/services/user-access-service";
 
 const AUTH_COOKIE = "pedido-poc-user";
+const SESSION_SECRET =
+  process.env.AUTH_SESSION_SECRET ??
+  process.env.AUTH_SECRET ??
+  process.env.NEXTAUTH_SECRET ??
+  "pedido-lembrancinha-dev-session-secret";
 
 export function getSessionUserId() {
-  return cookies().get(AUTH_COOKIE)?.value ?? null;
+  const token = cookies().get(AUTH_COOKIE)?.value;
+  return parseSessionToken(token, SESSION_SECRET);
 }
 
 export function requireSession() {
@@ -22,9 +29,10 @@ export function requireSession() {
 }
 
 export function setSessionCookie(userId: string) {
-  cookies().set(AUTH_COOKIE, userId, {
+  cookies().set(AUTH_COOKIE, createSessionToken(userId, SESSION_SECRET), {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
   });
 }
