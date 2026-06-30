@@ -1381,7 +1381,7 @@ tbody tr:last-child td {
   padding: 24px;
   background:
     linear-gradient(105deg, rgba(13, 13, 14, 0.88) 0%, rgba(27, 27, 28, 0.68) 44%, rgba(237, 28, 36, 0.42) 100%),
-    linear-gradient(135deg, #211f1f 0%, #3a3939 52%, #ed1c24 100%);
+    url("/assets/login-background.png") center / cover no-repeat;
   isolation: isolate;
 }
 
@@ -1399,7 +1399,7 @@ tbody tr:last-child td {
   display: grid;
   width: min(440px, 100%);
   gap: 24px;
-  padding: 34px;
+  padding: 32px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);

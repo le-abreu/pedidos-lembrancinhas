@@ -10,7 +10,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <main className="login-page">
       <section className="login-panel" aria-labelledby="login-title">
-        <img className="login-logo" src="/magnum-logo.png" alt="Magnum Tires" width={220} height={44} />
+        <img className="login-logo" src="/client-logo.png" alt="Cliente" width={220} height={44} />
         <div>
           <p className="eyebrow">Portal operacional</p>
           <h1 id="login-title">Acesso ao sistema</h1>
